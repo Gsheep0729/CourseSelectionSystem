@@ -240,6 +240,15 @@ git tag -d <标签名>
 git push origin --delete <标签名>
 # 或
 git push origin :refs/tags/<标签名>
+
+# 把本地的v1.0标签推送到远程 origin 仓库
+git push origin <标签名>
+
+# 批量推送所有标签（防遗漏）
+git push origin --tags
+
+# 查看远程标签列表
+git ls-remote --tags origin
 ```
 
 ##  历史与日志
