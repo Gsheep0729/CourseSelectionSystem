@@ -17,12 +17,15 @@
 * * 实现选课与退课功能，包含容量检查与重复选课验证
 * * 添加基础测试用例与 CLI 输出
 */
+module;
+#include <print>
+#include <algorithm>
 export module course_system:domain;
 
 export import :domain.student;
 export import :domain.course;
 
-import std;
+// import std;
 
 /**
 * @brief 学生选修课程

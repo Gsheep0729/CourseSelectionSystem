@@ -17,10 +17,14 @@
 * * 实现选课与退课功能，包含容量检查与重复选课验证
 * * 添加基础测试用例与 CLI 输出
 */
+module;
+#include <vector>
+#include <string>
+#include <print>
 export module course_system:app.controller;
 
 import :domain;
-import std;
+// import std;
 
 export class SystemController {
 public:
@@ -35,6 +39,12 @@ public:
 
     // 执行退课操作
     void performDrop(std::string sid, std::string cid);
+
+    ~SystemController() {
+        std::print("~SystemController\n");
+        for (auto s : m_students) delete s;
+        for (auto c : m_courses) delete c;
+    }
 
 private:
     std::vector<Student*> m_students; // 学生列表

@@ -2,9 +2,119 @@
 
 README初始内容
 
+# for_md.py 使用教程
+
+`CourseSelectionSystem/src/for_md.py` 是GY设计完成，可将指定目录下的源文件批量整合为结构化 Markdown 文件，便捷归档代码的一个脚本文件
+
+## 使用步骤
+
+1. 脚本目录执行：`python for_md.py`
+2. 输入项目路径（示例：`/run/media/root/铠侠D/桌面文件/开源技术群资料/考试/CourseSelectionSystem/CourseSelectionSystem/src/CourseSelectionSystem/`）
+3. 自动在指定目录生成 `<项目名>_knowledge_base.md` 文件。
+
+### 功能特点
+
+- 智能过滤：自动排除图片、二进制文件、编译产物、编辑器配置目录等无关内容
+- 多语言支持：适配 C/C++、Python、Java、JavaScript/TypeScript、HTML/CSS、Markdown、SQL 等主流代码格式
+- 结构化输出：按文件相对路径组织内容，根据一、二标题排版
+- 便捷操作：交互式输入路径，自动生成以项目名命名的 Markdown 文件
+
 # 快速加入开发
 
 ## Git 日常开发速查命令集（占位符版）
+
+### 如何使用此速查表？
+
+1. **替换占位符**：使用时将 `<占位符>` 替换为实际值
+   - `<仓库URL>` → `https://github.com/username/repo.git`
+   - `<分支名>` → `main`、`dev`、`feature/login`
+   - `<文件名>` → `src/main.cpp`、`README.md`
+
+2. **组合命令**：根据实际工作流组合使用
+
+3. **实践练习**：在测试仓库中练习常用命令
+
+4. **自定义修改**：根据团队规范调整命令格式
+
+记住：**Git 是工具，熟练使用需要实践**。遇到问题时，`git status` 和 `git log --oneline --graph --all` 通常能帮你理清当前状态。
+
+##  日常开发速查表
+
+### **开发流程**
+
+```bash
+# 开始新功能
+git switch <主分支> && git pull && git switch -c feature/<功能名>
+
+# 日常提交
+git add . && git commit -m "feat: <功能>" && git push
+
+# 拉取更新
+git switch <当前分支> && git pull
+
+# 查看状态
+git status
+
+# 查看历史
+git log --oneline --graph --all -10
+```
+
+### **分支管理**
+```bash
+# 创建分支（根据需要）
+git switch -c <分支名>
+
+# 切换分支
+git switch <分支名>
+# 例如：git switch release
+
+# 合并分支
+git merge <源分支>
+# 例如：git merge dev 
+
+# 删除分支
+git branch -d <分支名>
+# 例如：git push origin dev 
+```
+
+### **远程协作**
+```bash
+# 查看远程
+git remote -v
+
+# 添加远程
+git remote add <远程名> <远程URL>
+
+# 拉取代码
+git pull <远程名> <分支名>
+
+# 推送代码
+git push <远程名> <分支名>
+```
+
+## ⚠️ 重要提醒
+
+### **危险操作**
+```bash
+# 慎用！会丢失未提交的修改
+git reset --hard
+
+# 慎用！会覆盖远程历史
+git push -f
+
+# 慎用！会删除未跟踪的文件
+git clean -fd
+
+# 操作前先备份
+git branch backup-<操作描述>
+```
+
+### **最佳实践**
+1. **小步提交**：每个提交完成一个小功能
+2. **清晰信息**：使用约定式提交格式（feat:, fix:, docs:, style:, refactor:, test:, chore:）
+3. **先拉后推**：推送前先拉取最新代码避免冲突
+4. **分支策略**：功能分支开发，主分支保护
+5. **标签管理**：重要版本打标签标记
 
 ##  SSH 配置与管理
 
@@ -389,107 +499,3 @@ git switch -c <恢复分支名> <reflog哈希>
 # 或直接重置
 git reset --hard <reflog哈希>
 ```
-
-##  日常开发速查表
-
-### **开发流程**
-```bash
-# 开始新功能
-git switch <主分支> && git pull && git switch -c feature/<功能名>
-
-# 日常提交
-git add . && git commit -m "feat: <功能>" && git push
-
-# 拉取更新
-git switch <当前分支> && git pull
-
-# 查看状态
-git status
-
-# 查看历史
-git log --oneline --graph --all -10
-```
-
-### **分支管理**
-```bash
-# 创建分支
-git switch -c <分支名>
-
-# 切换分支
-git switch <分支名>
-
-# 合并分支
-git merge <源分支>
-
-# 删除分支
-git branch -d <分支名>
-```
-
-### **远程协作**
-```bash
-# 查看远程
-git remote -v
-
-# 添加远程
-git remote add <远程名> <远程URL>
-
-# 拉取代码
-git pull <远程名> <分支名>
-
-# 推送代码
-git push <远程名> <分支名>
-```
-
-## ⚠️ 重要提醒
-
-### **危险操作**
-```bash
-# 慎用！会丢失未提交的修改
-git reset --hard
-
-# 慎用！会覆盖远程历史
-git push -f
-
-# 慎用！会删除未跟踪的文件
-git clean -fd
-
-# 操作前先备份
-git branch backup-<操作描述>
-```
-
-### **最佳实践**
-1. **小步提交**：每个提交完成一个小功能
-2. **清晰信息**：使用约定式提交格式（feat:, fix:, docs:, style:, refactor:, test:, chore:）
-3. **先拉后推**：推送前先拉取最新代码避免冲突
-4. **分支策略**：功能分支开发，主分支保护
-5. **标签管理**：重要版本打标签标记
-
-### **Git 别名配置（可选）**
-```bash
-# 添加到 ~/.gitconfig
-[alias]
-    co = checkout
-    br = branch
-    ci = commit
-    st = status
-    lg = log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit
-    pl = pull --rebase
-    ps = push
-    undo = reset HEAD~1
-    wip = !git add -A && git commit -m "WIP"
-```
-
-## 🎯 如何使用此速查表
-
-1. **替换占位符**：使用时将 `<占位符>` 替换为实际值
-   - `<仓库URL>` → `https://github.com/username/repo.git`
-   - `<分支名>` → `main`、`dev`、`feature/login`
-   - `<文件名>` → `src/main.cpp`、`README.md`
-
-2. **组合命令**：根据实际工作流组合使用
-
-3. **实践练习**：在测试仓库中练习常用命令
-
-4. **自定义修改**：根据团队规范调整命令格式
-
-记住：**Git 是工具，熟练使用需要实践**。遇到问题时，`git status` 和 `git log --oneline --graph --all` 通常能帮你理清当前状态。
