@@ -14,22 +14,10 @@
 * [v2.0] GY   2026-01-06
 * * 新增 Infrastructure 导出
 */
-// export module course_system;
-//
-// export import :domain;
-// export import :app.controller;
-//
-// export import :infrastructure.db_connection;
-// export import :infrastructure.student_proxy;
-
-// Because I removed import std, I don't need to do anything here regarding std.
-// But wait, this file exports partitions.
-// Does it import std? No, I don't see `import std;` in the file content provided earlier.
-// Let's check the file content again.
 export module course_system;
 
 export import :domain;
 export import :app.controller;
 
-// export import :infrastructure.db_connection;
-// export import :infrastructure.student_proxy;
+export import :infrastructure.db_connection;
+export import :infrastructure.student_proxy;

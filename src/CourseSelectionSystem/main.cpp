@@ -12,10 +12,7 @@
 * [v1.0] GY   2026-01-06
 * * 优化了cmake,实现学生选课系统基础
 */
-// import std;
-#include <print>
-#include <exception>
-
+import std;
 import course_system; // 导入主模块
 
 int main() {
@@ -29,4 +26,3 @@ int main() {
     }
     return 0;
 }
-

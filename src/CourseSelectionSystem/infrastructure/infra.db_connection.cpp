@@ -1,13 +1,10 @@
 module;
 #include <pqxx/pqxx>
-#include <memory>
-#include <print>
-#include <string>
 
 module course_system; // General implementation unit
 
 import :infrastructure.db_connection;
-// import std;
+import std;
 
 PostgresConnection& PostgresConnection::instance() {
     static PostgresConnection instance;
@@ -34,4 +31,3 @@ PostgresConnection::PostgresConnection() {
 }
 
 PostgresConnection::~PostgresConnection() = default;
-

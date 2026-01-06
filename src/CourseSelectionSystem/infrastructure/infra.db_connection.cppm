@@ -1,9 +1,8 @@
 module;
-#include <memory>
-namespace pqxx { class connection; } // Forward declaration
+namespace pqxx { class connection; }
 export module course_system:infrastructure.db_connection;
 
-// import std;
+import std;
 
 export class PostgresConnection {
 public:
@@ -15,7 +14,6 @@ public:
 
 private:
     PostgresConnection();
-    ~PostgresConnection(); 
-
+    ~PostgresConnection();
     std::unique_ptr<pqxx::connection> m_conn;
 };

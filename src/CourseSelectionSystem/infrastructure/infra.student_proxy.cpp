@@ -1,15 +1,12 @@
 module;
 #include <pqxx/pqxx>
-#include <print>
-#include <format>
-#include <string>
 
 module course_system;
 
 import :infrastructure.student_proxy;
 import :infrastructure.db_connection;
 import :domain;
-// import std;
+import std;
 
 Student* StudentProxy::findById(std::string_view id) {
     try {
@@ -47,4 +44,3 @@ void StudentProxy::save(const Student& s) {
         std::print("[Proxy] save Exception: {}\n", e.what());
     }
 }
-

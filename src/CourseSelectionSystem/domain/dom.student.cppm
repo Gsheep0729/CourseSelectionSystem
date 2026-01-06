@@ -16,14 +16,9 @@
 * * 实现选课与退课功能，包含容量检查与重复选课验证
 * * 添加基础测试用例与 CLI 输出
 */
-module;
-#include <string>
-#include <vector>
-#include <print>
-#include <format>
 export module course_system:domain.student;
 
-// import std;
+import std;
 
 export class Course;
 
@@ -44,10 +39,6 @@ public:
 
     // 获取学生详细信息字符串
     std::string student_info() const;
-
-    ~Student() {
-        std::print("~Student: {}\n", m_name);
-    }
 
 private:
     std::string m_id;               // 学生 ID

@@ -1,10 +1,8 @@
-module;
-#include <string>
 export module course_system:infrastructure.student_proxy;
 
 import :domain;
 import :infrastructure.db_connection;
-// import std;
+import std;
 
 export class StudentProxy {
 public:
