@@ -6,15 +6,21 @@ set(CMAKE_CXX_MODULE_STD ON)
 
 project(CourseSelectionSystem LANGUAGES CXX)
 
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(PQXX REQUIRED libpqxx)
+
 # 1. 定义各层级的模块文件列表 (Code Grouping)
 add_executable(CourseSelectionSystem
     main.cpp
+
+
 )
 
 # 表现层模块 (Presentation Layer)
 set(PRESENTATION_MODULES
     # CourseSelectionSystem/presentation/.cppm
     # presentation/pre.cppm
+    presentation/pres.cli.cppm
 )
 
 # 应用逻辑层模块 (Application Layer)
@@ -29,11 +35,13 @@ set(DOMAIN_MODULES
     domain/dom.course.cppm
     domain/dom.student.cppm
     domain/domain.cppm
+    domain/dom.teacher.cppm
 )
 
 # 数据管理层模块 (Infrastructure Layer)
 set(INFRASTRUCTURE_MODULES
     # CourseSelectionSystem/infrastructure/.cppm
+    infrastructure/infra.db_adapter.cppm
 )
 
 # 2. 配置 IDE 中的显示分组 (IDE Display Grouping)
@@ -56,6 +64,11 @@ target_sources(CourseSelectionSystem PRIVATE FILE_SET cxx_modules TYPE CXX_MODUL
 )
 
 target_compile_features(CourseSelectionSystem PRIVATE cxx_std_23)
+
+
+target_link_libraries(CourseSelectionSystem PRIVATE ${PQXX_LIBRARIES})
+target_include_directories(CourseSelectionSystem PRIVATE ${PQXX_INCLUDE_DIRS})
+target_link_directories(CourseSelectionSystem PRIVATE ${PQXX_LIBRARY_DIRS})
 
 
 
@@ -127,3 +140,4 @@ target_compile_features(CourseSelectionSystem PRIVATE cxx_std_23)
 #    POST_BUILD
 #    COMMAND cmake --install "${CMAKE_CURRENT_BINARY_DIR}"
 #)
+
