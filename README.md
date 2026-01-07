@@ -117,6 +117,7 @@ git push <远程名> <分支名>
 ## ⚠️ 重要提醒
 
 ### **危险操作**
+
 ```bash
 # 慎用！会丢失未提交的修改
 git reset --hard
@@ -131,7 +132,81 @@ git clean -fd
 git branch backup-<操作描述>
 ```
 
+### Tag 合并到 Release 分支速查表
+
+#### 核心场景：添加 Tag → 合并到 Release 分支 → 推送远程
+
+##### 1. 前置准备（确保本地代码/Tag 与远程一致）
+```bash
+# 拉取远程所有分支+Tag（必做，避免本地缺失）
+git fetch origin --tags
+```
+
+##### 2. 本地添加 Tag（若未打 Tag 先执行）
+```bash
+# 方式1：附注标签（推荐，带说明）
+git tag -a <版本号/标签名> -m "Release: <版本号> 发布说明"
+# 示例：git tag -a v1.0.0 -m "Release: v1.0.0 正式版发布"
+
+# 方式2：轻量标签（仅标记，无说明）
+git tag <标签名>
+```
+
+### 3. 切换到 Release 分支并拉取最新代码
+```bash
+# 切换到release分支
+git switch release
+# 或经典写法：git checkout release
+
+# 拉取远程release最新代码
+git pull origin release
+```
+
+### 4. 合并 Tag 到 Release 分支（二选一）
+#### 方式1：完整合并 Tag（推荐，保留版本历史）
+```bash
+# 合并指定Tag到release分支（--no-ff 保留分支记录）
+git merge <标签名> --no-ff -m "合并 tag <标签名> 到 release 分支"
+```
+
+#### 方式2：摘取 Tag 对应提交（仅取单个提交）
+```bash
+# 精准摘取Tag对应的提交到release分支
+git cherry-pick <标签名>
+```
+
+### 5. 冲突处理（合并/摘取时触发）
+```bash
+# 1. 手动解决冲突文件后，暂存冲突文件
+git add <冲突文件名>
+
+# 2. 继续完成合并/摘取操作
+# 合并冲突：
+git merge --continue
+# 摘取冲突：
+git cherry-pick --continue
+```
+
+### 6. 推送 Release 分支 + Tag 到远程
+```bash
+# 推送release分支到远程
+git push origin release
+
+# 推送Tag到远程（首次打Tag必做，方便追溯）
+git push origin <标签名>
+
+# 批量推送所有未推送的Tag（可选）
+git push origin --tags
+```
+
+### ⚠️ 速查关键提醒
+1. 合并前必须执行 `git fetch origin --tags`，确保本地有最新Tag；
+2. 优先用 `git merge <标签名>` 合并完整版本，单个提交用 `git cherry-pick <标签名>`；
+3. 禁止直接用 `git push -f` 推送release分支，避免覆盖远程稳定代码；
+4. 合并后建议在代码平台（GitLab/GitHub）确认Release分支内容无误。
+
 ### **最佳实践**
+
 1. **小步提交**：每个提交完成一个小功能
 2. **清晰信息**：使用约定式提交格式（feat:, fix:, docs:, style:, refactor:, test:, chore:）
 3. **先拉后推**：推送前先拉取最新代码避免冲突
