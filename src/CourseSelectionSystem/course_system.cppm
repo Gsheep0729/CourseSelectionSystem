@@ -11,13 +11,10 @@
 * Change Log:
 * [v1.0] GY   2026-01-06
 * * 优化了cmake,实现学生选课系统基础
-* [v2.0] GY   2026-01-06
-* * 新增 Infrastructure 导出
 */
 export module course_system;
 
 export import :domain;
 export import :app.controller;
-
-export import :infrastructure.db_connection;
-export import :infrastructure.student_proxy;
+// export import :infrastructure; // 后续添加
+// export import :presentation;   // 后续添加
