@@ -23,22 +23,32 @@
 * Change Log:
 * [v1.0] GY   2026-01-06
 * * 优化了cmake,实现学生选课系统基础
+* [v1.1] Zhang Tao   2026-01-07
+* * 替换硬编码测试逻辑，新增CLI交互测试（调用UserInterface）
 */
 import std;
-import course_system; // 导入主模块
+import course_system; // 导入主模块（已包含表现层）
 
 int main() {
     try {
+        // 原有测试逻辑注释保留，后续集成时可恢复
+        /*
         SystemController app;
         app.initialize();
         app.run();
+        */
+
+        // 新增：CLI交互测试（张涛负责的表现层测试）
+        std::print("=== 选课系统 CLI 交互测试模式 ===\n");
+        UserInterface cli;
+        cli.showLoginMenu(); // 启动登录菜单，进入交互流程
+
     } catch (const std::exception& e) {
         std::print("Fatal Error: {}\n", e.what());
         return 1;
     }
     return 0;
 }
-
 
 ```
 
@@ -59,13 +69,14 @@ int main() {
 * Change Log:
 * [v1.0] GY   2026-01-06
 * * 优化了cmake,实现学生选课系统基础
+* [v1.1] Zhang Tao   2026-01-07
+* * 导入表现层（presentation）模块，支持CLI交互测试
 */
 export module course_system;
-
 export import :domain;
 export import :app.controller;
 // export import :infrastructure; // 后续添加
-// export import :presentation;   // 后续添加
+export import :presentation; // 新增：导出表现层模块
 
 ```
 
@@ -264,6 +275,201 @@ std::string Course::course_info() const {
 
 ---
 
+## File: domain/dom.teacher.cppm
+```cppm
+/**
+* @file    src/CourseSelectionSystem/domain/dom.teacher.cppm
+* @date    2026-01-08
+* @author  Zhang Tao
+* @brief   Domain partition: Teacher entity
+*
+* dom.teacher:领域层教师实体模块
+* 定义教师实体类，包含教师基本信息（ID、姓名）
+* 维护教师授课课程列表，提供授课管理、成绩录入/修改等核心操作
+* 严格遵循领域层纯业务对象约束，无SQL语句或数据库依赖
+*
+* Change Log:
+* [v1.0] Zhang Tao   2026-01-08
+* * 初始化教师实体类结构（基于C++23 Modules）
+* * 实现教师基本信息封装（ID、姓名）及访问接口
+* * 实现授课课程管理（添加/移除授课课程、获取授课列表）
+* * 实现成绩录入/修改逻辑（含成绩范围校验、授课课程权限校验）
+* * 实现教师信息格式化输出、ID匹配检查等辅助功能
+*/
+export module course_system:domain.teacher;
+
+import std;
+// 前向声明Course类，解决循环引用（教师与课程存在关联）
+export class Course;
+
+export class Teacher {
+public:
+   // 构造函数：初始化教师ID和姓名
+   Teacher(std::string id, std::string name);
+
+   // ID匹配检查：判断输入ID是否与教师ID一致
+   bool hasId(std::string_view id) const;
+
+   // 获取教师ID（只读）
+   std::string getId() const;
+
+   // 获取教师姓名（只读）
+   std::string getName() const;
+
+   // 添加授课课程：将课程加入教师的授课列表（避免重复添加）
+   void addTeachingCourse(Course* course);
+
+   // 移除授课课程：将课程从教师的授课列表中移除
+   void removeTeachingCourse(Course* course);
+
+   // 获取授课课程列表：返回当前教师的所有授课课程
+   std::vector<Course*> getTeachingCourses() const;
+
+   // 录入/修改成绩：仅允许为本人授课课程的学生打分（含权限与成绩范围校验）
+   // @param course 目标课程（需为教师授课课程）
+   // @param studentId 学生ID
+   // @param score 成绩（0-100整数）
+   // @return true 成绩录入成功，false 权限不足或成绩无效
+   bool assignGrade(Course* course, std::string_view studentId, int score);
+
+   // 获取教师详细信息字符串：格式化输出ID、姓名、授课数量
+   std::string teacher_info() const;
+
+private:
+   std::string m_id;                       // 教师ID（私有封装，仅通过接口访问）
+   std::string m_name;                     // 教师姓名（私有封装，仅通过接口访问）
+   std::vector<Course*> m_teachingCourses; // 授课课程列表（维护教师与课程的关联）
+
+   // 私有辅助方法：检查课程是否为当前教师的授课课程
+   bool isTeachingCourse(Course* course) const;
+};
+
+// --- Implementation ---
+/**
+* @brief 构造函数：初始化教师ID和姓名
+* @param id 教师唯一ID
+* @param name 教师姓名
+*/
+Teacher::Teacher(std::string id, std::string name)
+   : m_id(id), m_name(name) {}
+
+/**
+* @brief 检查输入ID是否与教师ID一致
+* @param id 待检查的ID
+* @return true 匹配成功，false 匹配失败
+*/
+bool Teacher::hasId(std::string_view id) const {
+   return m_id == id;
+}
+
+/**
+* @brief 获取教师ID
+* @return 教师ID字符串
+*/
+std::string Teacher::getId() const {
+   return m_id;
+}
+
+/**
+* @brief 获取教师姓名
+* @return 教师姓名字符串
+*/
+std::string Teacher::getName() const {
+   return m_name;
+}
+
+/**
+* @brief 私有辅助方法：检查课程是否为当前教师的授课课程
+* @param course 待检查的课程指针
+* @return true 是授课课程，false 非授课课程
+*/
+bool Teacher::isTeachingCourse(Course* course) const {
+   if (!course) return false;
+   // 遍历授课列表，检查课程是否存在
+   return std::ranges::contains(m_teachingCourses, course);
+}
+
+/**
+* @brief 添加授课课程：避免重复添加同一课程
+* @param course 待添加的授课课程指针
+*/
+void Teacher::addTeachingCourse(Course* course) {
+   if (!course) return;
+   // 检查课程是否已在授课列表中
+   if (isTeachingCourse(course)) {
+       std::print("Warning: Teacher {} is already teaching {}.\n", m_name, course->course_info());
+       return;
+   }
+   m_teachingCourses.push_back(course);
+   std::print("Success: Teacher {} added course {}.\n", m_name, course->course_info());
+}
+
+/**
+* @brief 移除授课课程：从列表中删除指定课程
+* @param course 待移除的授课课程指针
+*/
+void Teacher::removeTeachingCourse(Course* course) {
+   if (!course) return;
+   // 查找课程在列表中的位置
+   auto it = std::ranges::find(m_teachingCourses, course);
+   if (it != m_teachingCourses.end()) {
+       m_teachingCourses.erase(it);
+       std::print("Success: Teacher {} removed course {}.\n", m_name, course->course_info());
+   } else {
+       std::print("Error: Teacher {} is not teaching {}.\n", m_name, course->course_info());
+   }
+}
+
+/**
+* @brief 获取当前教师的所有授课课程列表
+* @return 授课课程指针向量（只读）
+*/
+std::vector<Course*> Teacher::getTeachingCourses() const {
+   return m_teachingCourses;
+}
+
+/**
+* @brief 录入/修改成绩：严格遵循教师权限与成绩范围约束
+* @param course 目标课程（需为教师授课课程）
+* @param studentId 学生ID
+* @param score 成绩（0-100整数，超出范围视为无效）
+* @return true 操作成功，false 操作失败（权限/成绩无效）
+*/
+bool Teacher::assignGrade(Course* course, std::string_view studentId, int score) {
+   // 1. 基础有效性校验
+   if (!course || studentId.empty()) {
+       std::print("Error: Invalid course or student ID.\n");
+       return false;
+   }
+   // 2. 权限校验：仅允许为本人授课课程打分
+   if (!isTeachingCourse(course)) {
+       std::print("Error: Teacher {} has no permission to grade course {}.\n", m_name, course->course_info());
+       return false;
+   }
+   // 3. 成绩范围校验（0-100整数）
+   if (score < 0 || score > 100) {
+       std::print("Error: Score {} is invalid (must be 0-100).\n", score);
+       return false;
+   }
+   // 4. 记录成绩操作日志（符合需求说明书"修改需记录日志"要求）
+   std::print("[Grade Log] Teacher {} assigned score {} to Student {} for Course {}\n",
+       m_name, score, studentId, course->course_info());
+   return true;
+}
+
+/**
+* @brief 获取教师详细信息：格式化输出核心信息
+* @return 格式化字符串（包含ID、姓名、授课数量）
+*/
+std::string Teacher::teacher_info() const {
+   return std::format("[Teacher] {} - {} (Teaching {} courses)",
+       m_id, m_name, m_teachingCourses.size());
+}
+
+```
+
+---
+
 ## File: domain/domain.cppm
 ```cppm
 /**
@@ -335,13 +541,6 @@ void Student::dropCourse(Course* c) {
         std::print("Error: Student {} is not enrolled in {}.\n", m_name, c->course_info());
     }
 }
-
-```
-
----
-
-## File: application/app.cppm
-```cppm
 
 ```
 
@@ -517,6 +716,333 @@ Course* SystemController::findCourse(std::string_view id) {
         if (c->hasId(id)) return c;
     }
     return nullptr;
+}
+
+```
+
+---
+
+## File: presentation/pres.cli.cppm
+```cppm
+/**
+* @file    src/CourseSelectionSystem/presentation/pres.cli.cppm
+* @date    2026-01-07
+* @author  Zhang Tao
+* @brief   Presentation layer partition (CLI Menu System)
+*
+* 表现层模块接口与实现，定义并实现用户交互核心类 UserInterface
+* 提供登录菜单、各角色功能菜单的完整逻辑，遵循 C++23 Modules 规范
+* 严格遵循「表现层不包含业务逻辑」约束，仅处理输入输出格式化
+*
+* Change Log:
+* [v1.0] Zhang Tao   2026-01-07
+* * 初始化表现层模块结构
+* * 定义 UserInterface 类及核心菜单接口
+* * 实现登录菜单输入处理与角色选择
+* * 实现学生、教师、教学秘书菜单循环逻辑
+* * 添加输入校验与缓冲区清理，优化交互体验
+* * 支持学生、教师、教学秘书三种角色的菜单交互
+* [v1.1] Zhang Tao   2026-01-07
+* * 优化交互页面空白大小（减少空行数量）
+* * 调整菜单选项文字顺序（中文在前、英文在后）
+*/
+export module course_system:presentation;
+
+import std;
+
+// --- 类声明 ---
+export class UserInterface {
+public:
+    /**
+     * @brief 显示登录菜单，处理用户登录流程
+     * @return 登录成功的用户ID（非空）
+     * @note 仅做模拟登录：ID非空即通过，密码不校验，支持角色选择
+     */
+    std::string showLoginMenu();
+
+    /**
+     * @brief 显示学生主菜单（循环交互）
+     * @param studentId 登录学生的ID
+     * @note 提供选课、退课、查课表、查成绩功能选项，暂不绑定业务逻辑
+     */
+    void showStudentMenu(std::string_view studentId);
+
+    /**
+     * @brief 显示教师主菜单（循环交互）
+     * @param teacherId 登录教师的ID
+     * @note 提供查看授课名单、录入成绩、修改成绩功能选项，暂不绑定业务逻辑
+     */
+    void showTeacherMenu(std::string_view teacherId);
+
+    /**
+     * @brief 显示教学秘书主菜单（循环交互）
+     * @param secretaryId 登录教学秘书的ID
+     * @note 提供创建课程、分配教师、设置上课时间功能选项，暂不绑定业务逻辑
+     */
+    void showSecretaryMenu(std::string_view secretaryId);
+
+private:
+    /**
+     * @brief 清除输入缓冲区，避免无效输入导致的交互异常
+     */
+    void clearInputBuffer() const;
+
+    /**
+     * @brief 显示角色选择菜单，返回用户选择的角色类型
+     * @return 1=学生，2=教师，3=教学秘书
+     */
+    int showRoleSelectionMenu() const;
+};
+
+// --- 实现部分 ---
+
+/**
+* @brief 清除输入缓冲区，避免无效输入导致的交互异常
+*/
+void UserInterface::clearInputBuffer() const {
+    std::cin.clear();                  // 清除错误状态标志
+    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); // 忽略缓冲区所有字符
+}
+
+/**
+* @brief 显示角色选择菜单，返回用户选择的角色类型
+* @return 1=学生，2=教师，3=教学秘书
+*/
+int UserInterface::showRoleSelectionMenu() const {
+    int role_choice = 0;
+    while (true) {
+        std::print("\n==================== 角色选择 ====================\n");
+        std::print("1. 学生\n");
+        std::print("2. 教师\n");
+        std::print("3. 教学秘书\n");
+        std::print("===============================================\n");
+        std::print("请选择您的角色（输入数字1-3）：");
+        std::cin >> role_choice;
+
+        if (std::cin.fail() || role_choice < 1 || role_choice > 3) {
+            clearInputBuffer();
+            std::print("❌ 无效输入！请输入1-3之间的数字。\n");
+            continue;
+        }
+        clearInputBuffer();
+        break;
+    }
+    return role_choice;
+}
+
+/**
+* @brief 显示登录菜单，处理用户登录流程
+* @return 登录成功的用户ID（非空）
+* @note 仅做模拟登录：ID非空即通过，密码不校验，支持角色选择
+*/
+std::string UserInterface::showLoginMenu() {
+    std::string user_id;
+    std::string password;
+
+    // 优化：减少空行数量，缩小页面空白
+    std::print("\n\n\n");
+    std::print("===============================================\n");
+    std::print("========== 重庆师范大学选课系统 v1.0 ==========\n");
+    std::print("===============================================\n");
+
+    // 输入用户ID（非空校验）
+    while (true) {
+        std::print("请输入用户ID：");
+        std::getline(std::cin, user_id);
+
+        if (user_id.empty()) {
+            std::print("❌ 用户ID不能为空！请重新输入。\n");
+            continue;
+        }
+        break;
+    }
+
+    // 输入密码（暂不校验，仅做显示）
+    // std::print("请输入密码：");
+    // std::getline(std::cin, password);
+    std::print("✅ 登录验证通过！\n");
+
+    // 角色选择与菜单跳转
+    int role = showRoleSelectionMenu();
+    switch (role) {
+        case 1:
+            showStudentMenu(user_id);
+            break;
+        case 2:
+            showTeacherMenu(user_id);
+            break;
+        case 3:
+            showSecretaryMenu(user_id);
+            break;
+        default:
+            std::print("❌ 角色选择异常，返回登录界面。\n");
+            break;
+    }
+
+    return user_id;
+}
+
+/**
+* @brief 显示学生主菜单（循环交互）
+* @param studentId 登录学生的ID
+* @note 提供选课、退课、查课表、查成绩功能选项，暂不绑定业务逻辑
+*/
+void UserInterface::showStudentMenu(std::string_view studentId) {
+    int choice = 0;
+    while (true) {
+        // 优化：减少空行数量，缩小页面空白
+        std::print("\n\n\n");
+        std::print("===============================================\n");
+        std::print("========== 学生菜单 - 用户名：{} ==========\n", studentId);
+        std::print("===============================================\n");
+        // 调整：中文在前、英文在后
+        std::print("1. 选课 (Enroll in Course)\n");
+        std::print("2. 退课 (Drop Course)\n");
+        std::print("3. 查看课表 (View Schedule)\n");
+        std::print("4. 查看成绩 (View Grades)\n");
+        std::print("5. 退出登录 (Logout)\n");
+        std::print("===============================================\n");
+        std::print("请选择功能（输入数字1-5）：");
+        std::cin >> choice;
+
+        if (std::cin.fail() || choice < 1 || choice > 5) {
+            clearInputBuffer();
+            std::print("❌ 无效输入！请输入1-5之间的数字。\n");
+            std::print("按Enter键继续...");
+            std::cin.get();
+            continue;
+        }
+        clearInputBuffer();
+
+        // 功能选中提示（暂不绑定业务逻辑）
+        switch (choice) {
+            case 1:
+                std::print("\n✅ 已选择功能 [1]：选课 (Enroll in Course)\n");
+                break;
+            case 2:
+                std::print("\n✅ 已选择功能 [2]：退课 (Drop Course)\n");
+                break;
+            case 3:
+                std::print("\n✅ 已选择功能 [3]：查看课表 (View Schedule)\n");
+                break;
+            case 4:
+                std::print("\n✅ 已选择功能 [4]：查看成绩 (View Grades)\n");
+                break;
+            case 5:
+                std::print("\n✅ 退出登录成功！返回登录界面。\n");
+                return;
+        }
+
+        // 停留提示，增强交互体验
+        std::print("按Enter键继续...");
+        std::cin.get();
+    }
+}
+
+/**
+* @brief 显示教师主菜单（循环交互）
+* @param teacherId 登录教师的ID
+* @note 提供查看授课名单、录入成绩、修改成绩功能选项，暂不绑定业务逻辑
+*/
+void UserInterface::showTeacherMenu(std::string_view teacherId) {
+    int choice = 0;
+    while (true) {
+        // 优化：减少空行数量，缩小页面空白
+        std::print("\n\n\n");
+        std::print("===============================================\n");
+        std::print("========== 教师菜单 - 用户名：{} ==========\n", teacherId);
+        std::print("===============================================\n");
+        // 调整：中文在前、英文在后
+        std::print("1. 查看授课名单 (View Teaching Roster)\n");
+        std::print("2. 录入成绩 (Assign Grade)\n");
+        std::print("3. 修改成绩 (Modify Grade)\n");
+        std::print("4. 退出登录 (Logout)\n");
+        std::print("===============================================\n");
+        std::print("请选择功能（输入数字1-4）：");
+        std::cin >> choice;
+
+        if (std::cin.fail() || choice < 1 || choice > 4) {
+            clearInputBuffer();
+            std::print("❌ 无效输入！请输入1-4之间的数字。\n");
+            std::print("按Enter键继续...");
+            std::cin.get();
+            continue;
+        }
+        clearInputBuffer();
+
+        // 功能选中提示（暂不绑定业务逻辑）
+        switch (choice) {
+            case 1:
+                std::print("\n✅ 已选择功能 [1]：查看授课名单 (View Teaching Roster)\n");
+                break;
+            case 2:
+                std::print("\n✅ 已选择功能 [2]：录入成绩 (Assign Grade)\n");
+                break;
+            case 3:
+                std::print("\n✅ 已选择功能 [3]：修改成绩 (Modify Grade)\n");
+                break;
+            case 4:
+                std::print("\n✅ 退出登录成功！返回登录界面。\n");
+                return;
+        }
+
+        // 停留提示
+        std::print("按Enter键继续...");
+        std::cin.get();
+    }
+}
+
+/**
+* @brief 显示教学秘书主菜单（循环交互）
+* @param secretaryId 登录教学秘书的ID
+* @note 提供创建课程、分配教师、设置上课时间功能选项，暂不绑定业务逻辑
+*/
+void UserInterface::showSecretaryMenu(std::string_view secretaryId) {
+    int choice = 0;
+    while (true) {
+        // 优化：减少空行数量，缩小页面空白
+        std::print("\n\n\n");
+        std::print("===============================================\n");
+        std::print("========== 教学秘书菜单 - 用户名：{} ==========\n", secretaryId);
+        std::print("===============================================\n");
+        // 调整：中文在前、英文在后
+        std::print("1. 创建课程 (Create Course)\n");
+        std::print("2. 分配教师 (Assign Teacher)\n");
+        std::print("3. 设置上课时间 (Set Class Time)\n");
+        std::print("4. 退出登录 (Logout)\n");
+        std::print("===============================================\n");
+        std::print("请选择功能（输入数字1-4）：");
+        std::cin >> choice;
+
+        if (std::cin.fail() || choice < 1 || choice > 4) {
+            clearInputBuffer();
+            std::print("❌ 无效输入！请输入1-4之间的数字。\n");
+            std::print("按Enter键继续...");
+            std::cin.get();
+            continue;
+        }
+        clearInputBuffer();
+
+        // 功能选中提示（暂不绑定业务逻辑）
+        switch (choice) {
+            case 1:
+                std::print("\n✅ 已选择功能 [1]：创建课程 (Create Course)\n");
+                break;
+            case 2:
+                std::print("\n✅ 已选择功能 [2]：分配教师 (Assign Teacher)\n");
+                break;
+            case 3:
+                std::print("\n✅ 已选择功能 [3]：设置上课时间 (Set Class Time)\n");
+                break;
+            case 4:
+                std::print("\n✅ 退出登录成功！返回登录界面。\n");
+                return;
+        }
+
+        // 停留提示
+        std::print("按Enter键继续...");
+        std::cin.get();
+    }
 }
 
 ```
