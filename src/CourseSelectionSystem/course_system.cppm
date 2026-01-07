@@ -11,6 +11,8 @@
 * Change Log:
 * [v1.0] GY   2026-01-06
 * * 优化了cmake,实现学生选课系统基础
+* [v1.5] GY   2026-01-07
+* * 整合基础设施层，导出 db_adapter 模块
 */
 export module course_system;
 

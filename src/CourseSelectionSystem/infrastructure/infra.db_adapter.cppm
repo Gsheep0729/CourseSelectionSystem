@@ -13,7 +13,9 @@
 * [v1.0] GY   2026-01-07
 * * 借鉴 postgre_demo 项目实现数据库适配器
 * * 解决 libpqxx 与 C++ Modules 的兼容性问题
-* * 封装通用的 execute 和 query 接口，支持 std::optional 结果集
+* [v1.5] GY   2026-01-07
+* * 重构代码结构，实现声明与实现分离
+* * 优化接口注释，支持 std::optional 结果集和显式字符串拷贝，解决 ABI 兼容导致的查询空值问题
 */
 module;
 #include <pqxx/pqxx>

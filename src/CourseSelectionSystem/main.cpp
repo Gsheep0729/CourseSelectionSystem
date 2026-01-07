@@ -1,6 +1,14 @@
 /**
-* @file    src/CourseSelectionSystem/main.cpp
+* @file    /run/media/root/铠侠D/桌面文件/开源技术群资料/考试/CourseSelectionSystem/CourseSelectionSystem/src/CourseSelectionSystem/main.cpp
+* @date    2026-01-07
+* @author  GY
 * @brief   Integrated Test: Enrollment System (Formatted Output, Hardcoded Data)
+*
+* Change Log:
+* [v1.0] GY   2026-01-06
+* * 优化了cmake,实现学生选课系统基础
+* [v1.5] GY   2026-01-07
+* * 接入 DBAdapter，完成基于真实数据的选课/退课全流程集成测试
 */
 import std;
 import course_system;
