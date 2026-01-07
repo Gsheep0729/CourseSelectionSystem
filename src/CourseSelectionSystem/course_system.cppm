@@ -16,5 +16,5 @@ export module course_system;
 
 export import :domain;
 export import :app.controller;
-// export import :infrastructure; // 后续添加
+export import :infrastructure;
 // export import :presentation;   // 后续添加
