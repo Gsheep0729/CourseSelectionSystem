@@ -14,6 +14,8 @@ add_executable(CourseSelectionSystem
 
 
 
+
+
 )
 
 # 表现层模块 (Presentation Layer)
@@ -36,6 +38,8 @@ set(DOMAIN_MODULES
     domain/dom.course.cppm
     domain/dom.student.cppm
     domain/domain.cppm
+    domain/dom.teacher.cppm
+
 )
 
 # 数据管理层模块 (Infrastructure Layer)
