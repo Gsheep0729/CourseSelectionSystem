@@ -11,10 +11,11 @@
 * Change Log:
 * [v1.0] GY   2026-01-06
 * * 优化了cmake,实现学生选课系统基础
+* [v1.1] Zhang Tao   2026-01-07
+* * 导入表现层（presentation）模块，支持CLI交互测试
 */
 export module course_system;
-
 export import :domain;
 export import :app.controller;
 // export import :infrastructure; // 后续添加
-// export import :presentation;   // 后续添加
+export import :presentation; // 新增：导出表现层模块
