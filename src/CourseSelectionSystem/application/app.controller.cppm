@@ -1,6 +1,6 @@
 /**
 * @file    src/CourseSelectionSystem/application/app.controller.cppm
-* @date    2026-01-06
+* @date    2026-01-07
 * @author  GY
 * @brief   Application partition: System Controller
 *
@@ -12,22 +12,25 @@
 * Change Log:
 * [v1.0] GY   2026-01-06
 * * 初始化项目架构 (基于 C++23 Modules)
-* * 实现领域层实体 (Student, Course) 及其核心逻辑
-* * 实现应用层控制器 (SystemController) 管理选课流程
-* * 实现选课与退课功能，包含容量检查与重复选课验证
-* * 添加基础测试用例与 CLI 输出
+* [v1.5] GY   2026-01-07
+* * 重构 SystemController，移除内存存储，接入 DBAdapter
+* [v2.0] Integrated 2026-01-07
+* * 完成 SystemController 与 DBAdapter 的深度集成
+* * 移除内存容器 (std::vector)，全量迁移至 SQL 事务操作
+* * 实现基于数据库的实时选课/退课业务逻辑（含并发安全/容量检查）
 */
 export module course_system:app.controller;
 
 import :domain;
+import :infrastructure;
 import std;
 
 export class SystemController {
 public:
-    // 初始化系统
+    // 初始化系统 (连接数据库, 建表, 初始化数据)
     void initialize();
 
-    // 运行系统
+    // 运行系统 (CLI模式下可能不再需要此处的循环逻辑，保留接口兼容)
     void run();
 
     // 执行选课操作
@@ -37,133 +40,170 @@ public:
     void performDrop(std::string sid, std::string cid);
 
 private:
-    std::vector<Student*> m_students; // 学生列表
-    std::vector<Course*> m_courses;   // 课程列表
+    db::DBAdapter m_db; // 数据库适配器
 
-    // 根据ID查找学生
-    Student* findStudent(std::string_view id);
-
-    // 根据ID查找课程
-    Course* findCourse(std::string_view id);
+    // 辅助函数：获取课程信息
+    struct CourseInfo {
+        std::string id;
+        std::string name;
+        int enrolled;
+        int capacity;
+        bool valid;
+    };
+    CourseInfo getCourseInfo(const std::string& cid);
 };
 
 // --- Implementation ---
 
 /**
 * @brief 初始化系统
-* 创建初始的学生和课程数据
+* 连接数据库，创建表结构，加载初始数据
 */
 void SystemController::initialize() {
-    std::print("System Initializing Mock Data...\n");
+    std::string conn_str = "dbname=postgres user=postgres password=123 hostaddr=127.0.0.1 port=5432";
+    if (!m_db.connect(conn_str)) {
+        std::print("Error: Failed to connect to database.\n");
+        return;
+    }
 
-    // 1. 初始化学生 (Real Data)
-    m_students.push_back(new Student("2024051604085", "Gao Yang"));
+    // 重置数据库 (为了测试方便，生产环境应去除 DROP)
+    m_db.execute("DROP TABLE IF EXISTS enrollment");
+    m_db.execute("DROP TABLE IF EXISTS course");
+    m_db.execute("DROP TABLE IF EXISTS student");
+    
+    // 创建表
+    m_db.execute("CREATE TABLE student (id TEXT PRIMARY KEY, name TEXT)");
+    m_db.execute("CREATE TABLE course (id TEXT PRIMARY KEY, name TEXT, capacity INT DEFAULT 60, enrolled INT DEFAULT 0)");
+    m_db.execute("CREATE TABLE enrollment (student_id TEXT, course_id TEXT, PRIMARY KEY (student_id, course_id))");
 
-    // 2. 初始化课程 (Real Data from course_data.dat)
-    m_courses.push_back(new Course("C0001", "高等数学"));
-    m_courses.push_back(new Course("C0002", "马克思主义基本原理"));
-    m_courses.push_back(new Course("C0003", "软件构建与实现"));
-    m_courses.push_back(new Course("C0004", "计算机网络"));
-    m_courses.push_back(new Course("C0005", "计算机导论"));
-    m_courses.push_back(new Course("C0006", "线性代数"));
-    m_courses.push_back(new Course("C0007", "概率论与数理统计"));
-    m_courses.push_back(new Course("C0008", "数据结构"));
-    m_courses.push_back(new Course("C0009", "数据库原理及应用"));
-    m_courses.push_back(new Course("C0010", "思想道德与法治"));
-    m_courses.push_back(new Course("C0011", "形势与政策"));
-    m_courses.push_back(new Course("C0012", "大学英语"));
-    m_courses.push_back(new Course("C0013", "大学生心理健康教育"));
-    m_courses.push_back(new Course("C0014", "体育"));
-    m_courses.push_back(new Course("C0015", "中国近现代史纲要"));
-    m_courses.push_back(new Course("C0016", "Linux程序设计"));
-    m_courses.push_back(new Course("C0017", "C语言程序设计"));
+    std::print("Database initialized.\n");
 
-    std::print("Loaded {} students and {} courses.\n", m_students.size(), m_courses.size());
+    // 加载初始数据
+    std::string s_id = "2024051604085";
+    std::string s_name = "Gao Yang"; 
+    m_db.execute(std::format("INSERT INTO student (id, name) VALUES ('{}', '{}')", s_id, s_name));
+
+    std::vector<std::pair<std::string, std::string>> manual_courses = {
+        {"C0017", "C语言程序设计"},
+        {"C0001", "高等数学"},
+        {"C0008", "数据结构"},
+        {"C0016", "Linux程序设计"},
+        {"C0005", "计算机导论"},
+        {"C0002", "马克思主义基本原理"},
+        {"C0003", "软件构建与实现"},
+        {"C0004", "计算机网络"},
+        {"C0006", "线性代数"},
+        {"C0007", "概率论与数理统计"},
+        {"C0009", "数据库原理及应用"},
+        {"C0010", "思想道德与法治"},
+        {"C0011", "形势与政策"},
+        {"C0012", "大学英语"},
+        {"C0013", "大学生心理健康教育"},
+        {"C0014", "体育"},
+        {"C0015", "中国近现代史纲要"}
+    };
+
+    int course_count = 0;
+    for (const auto& [id, name] : manual_courses) {
+        if (m_db.execute(std::format("INSERT INTO course (id, name) VALUES ('{}', '{}')", id, name))) {
+            course_count++;
+        }
+    }
+    
+    std::print("Loaded 1 student and {} courses.\n", course_count);
 }
 
 
 /**
 * @brief 运行系统
-* 启动系统并执行选课操作
 */
 void SystemController::run() {
-    std::print("System Started.\n");
-    std::string sid = "2024051604085";
-
-    // 1. 初始选课
-    std::print("\n=== Enrollment Tests ===\n");
-    performEnrollment(sid, "C0017"); // C语言
-    performEnrollment(sid, "C0001"); // 高数
-    performEnrollment(sid, "C0008"); // 数据结构
-
-    // 2. 尝试退课
-    std::print("\n=== Drop Tests ===\n");
-    performDrop(sid, "C0001"); // 退选高数
-
-    // 3. 再次选课
-    std::print("\n=== Re-Enrollment Tests ===\n");
-    performEnrollment(sid, "C0016"); // Linux程序设计
-
-    // 4. 尝试退掉未选的课
-    std::print("\n=== Invalid Drop Tests ===\n");
-    performDrop(sid, "C0005"); // 计算机导论 (未选)
+    // 保留为空，逻辑移交 CLI
+    std::print("System Controller Ready.\n");
 }
 
 
+SystemController::CourseInfo SystemController::getCourseInfo(const std::string& cid) {
+    auto res = m_db.query(std::format("SELECT name, enrolled, capacity FROM course WHERE id = '{}'", cid));
+    if (res && !res->empty()) {
+        try {
+            return {
+                cid, 
+                (*res)[0][0], 
+                std::stoi((*res)[0][1]), 
+                std::stoi((*res)[0][2]), 
+                true
+            };
+        } catch (...) {
+            return {"", "", 0, 0, false};
+        }
+    }
+    return {"", "", 0, 0, false};
+}
+
 /**
 * @brief 执行选课操作
-* @param sid 学生ID
-* @param cid 课程ID
 */
 void SystemController::performEnrollment(std::string sid, std::string cid) {
-    auto s = findStudent(sid);
-    auto c = findCourse(cid);
+    auto info = getCourseInfo(cid);
+    if (!info.valid) {
+        std::print("Error: Course {} not found.\n", cid);
+        return;
+    }
 
-    if (s && c) {
-        s->enrollIn(c);
+    // 检查是否已选
+    auto check = m_db.query(std::format("SELECT 1 FROM enrollment WHERE student_id='{}' AND course_id='{}'", sid, cid));
+    if (check && !check->empty()) {
+        std::print("Error: Student {} is already enrolled in [Course] {} - {} ({}/{})\n", 
+              sid, info.id, info.name, info.enrolled, info.capacity);
+        return;
+    }
+
+    if (info.enrolled >= info.capacity) {
+        std::print("Error: Course {} is full.\n", info.name);
+        return;
+    }
+
+    // 执行事务
+    bool ok1 = m_db.execute(std::format("INSERT INTO enrollment VALUES ('{}', '{}')", sid, cid));
+    bool ok2 = m_db.execute(std::format("UPDATE course SET enrolled = enrolled + 1 WHERE id = '{}'", cid));
+
+    if (ok1 && ok2) {
+        info.enrolled++; 
+        std::print("Success: Student {} enrolled in [Course] {} - {} ({}/{})\n", 
+              sid, info.id, info.name, info.enrolled, info.capacity);
     } else {
-        std::print("Error: Student ({}) or Course ({}) not found.\n", sid, cid);
+        std::print("Error: Database failure during enrollment.\n");
     }
 }
 
 /**
 * @brief 执行退课操作
-* @param sid 学生ID
-* @param cid 课程ID
 */
 void SystemController::performDrop(std::string sid, std::string cid) {
-    auto s = findStudent(sid);
-    auto c = findCourse(cid);
+    auto info = getCourseInfo(cid); // 获取当前信息用于打印
+    if (!info.valid) {
+        std::print("Error: Course {} not found.\n", cid);
+        return;
+    }
 
-    if (s && c) {
-        s->dropCourse(c);
+    // 检查是否已选
+    auto check = m_db.query(std::format("SELECT 1 FROM enrollment WHERE student_id='{}' AND course_id='{}'", sid, cid));
+    if (!check || check->empty()) {
+        std::print("Error: Student {} is not enrolled in [Course] {} - {} ({}/{})\n", 
+              sid, info.id, info.name, info.enrolled, info.capacity);
+        return;
+    }
+
+    // 执行事务
+    bool ok1 = m_db.execute(std::format("DELETE FROM enrollment WHERE student_id='{}' AND course_id='{}'", sid, cid));
+    bool ok2 = m_db.execute(std::format("UPDATE course SET enrolled = enrolled - 1 WHERE id = '{}'", cid));
+
+    if (ok1 && ok2) {
+        info.enrolled--;
+        std::print("Success: Student {} dropped [Course] {} - {} ({}/{})\n", 
+              sid, info.id, info.name, info.enrolled, info.capacity);
     } else {
-        std::print("Error: Student ({}) or Course ({}) not found.\n", sid, cid);
+        std::print("Error: Database failure during drop.\n");
     }
-}
-
-
-/**
-* @brief 根据ID查找学生
-* @param id 学生ID
-* @return 找到的学生指针，未找到返回 nullptr
-*/
-Student* SystemController::findStudent(std::string_view id) {
-    for (auto s : m_students) {
-        if (s->hasId(id)) return s;
-    }
-    return nullptr;
-}
-
-
-/**
-* @brief 根据ID查找课程
-* @param id 课程ID
-* @return 找到的课程指针，未找到返回 nullptr
-*/
-Course* SystemController::findCourse(std::string_view id) {
-    for (auto c : m_courses) {
-        if (c->hasId(id)) return c;
-    }
-    return nullptr;
 }

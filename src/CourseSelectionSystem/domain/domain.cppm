@@ -18,7 +18,7 @@
 * * 添加基础测试用例与 CLI 输出
 */
 export module course_system:domain;
-
+//export import :domain.teacher;
 export import :domain.student;
 export import :domain.course;
 
