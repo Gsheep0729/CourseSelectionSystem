@@ -129,15 +129,15 @@ std::optional<Result> DBAdapter::query(const std::string& sql) {
         for (const auto& row : R) {
             Row current_row;
             current_row.reserve(row.size());
-                            for (const auto& field : row) {
-                                // 处理空字段，转换为零长度字符串
-                                if (field.is_null()) {
-                                    current_row.push_back("");
-                                } else {
-                                    // 显式构造 std::string 以确保从 C-style 字符串正确拷贝数据
-                                    current_row.emplace_back(field.c_str());
-                                }
-                            }            result_set.push_back(std::move(current_row));
+            for (const auto& field : row) {
+                // 处理空字段，转换为零长度字符串
+                if (field.is_null()) {
+                    current_row.push_back("");
+                } else {
+                    current_row.push_back(field.c_str());
+                }
+            }
+            result_set.push_back(std::move(current_row));
         }
         return result_set;
     } catch (const std::exception& e) {
