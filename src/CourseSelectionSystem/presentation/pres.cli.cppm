@@ -20,8 +20,13 @@
 */
 export module course_system:presentation;
 
+// 模块导入必须放在全局作用域（函数外），C++23不允许函数内import
 import std;
 import :app.controller;
+import :domain;                      // 导入Course类所在的领域模块
+import :infrastructure;              // 基础数据库适配器模块
+import :infrastructure.course_proxy; // 课程代理模块（移到全局作用域）
+import :infrastructure.enrollment_proxy; // 选课代理模块（移到全局作用域）
 
 // --- 类声明 ---
 export class UserInterface {
@@ -183,7 +188,7 @@ void UserInterface::showStudentMenu(std::string_view studentId) {
 
         std::string courseId;
         switch (choice) {
-            case 1:
+            case 1: { // 加花括号避免变量跨case初始化问题
                 std::print("\n--- 选课 ---\n");
                 std::print("请输入课程ID：");
                 std::getline(std::cin, courseId);
@@ -193,7 +198,8 @@ void UserInterface::showStudentMenu(std::string_view studentId) {
                     std::print("Error: System Controller not initialized.\n");
                 }
                 break;
-            case 2:
+            }
+            case 2: { // 加花括号避免变量跨case初始化问题
                 std::print("\n--- 退课 ---\n");
                 std::print("请输入课程ID：");
                 std::getline(std::cin, courseId);
@@ -203,6 +209,7 @@ void UserInterface::showStudentMenu(std::string_view studentId) {
                     std::print("Error: System Controller not initialized.\n");
                 }
                 break;
+            }
             case 3:
                 std::print("\n✅ 已选择功能 [3]：查看课表 (View Schedule)\n");
                 std::print("(功能开发中...)\n");
@@ -225,7 +232,7 @@ void UserInterface::showStudentMenu(std::string_view studentId) {
 * @brief 显示教师主菜单
 */
 void UserInterface::showTeacherMenu(std::string_view teacherId) {
-    int choice = 0;
+    int choice = 0; // 确保变量在正确作用域声明
     while (true) {
         std::print("\n\n\n");
         std::print("===============================================\n");
@@ -251,13 +258,48 @@ void UserInterface::showTeacherMenu(std::string_view teacherId) {
         switch (choice) {
             case 1:
                 std::print("\n✅ 已选择功能 [1]：查看授课名单 (View Teaching Roster)\n");
+                std::print("(功能开发中...)\n");
                 break;
-            case 2:
-                std::print("\n✅ 已选择功能 [2]：录入成绩 (Assign Grade)\n");
+            case 2: { // 加花括号包裹变量初始化
+                std::string studentId, courseId;
+                int score;
+                std::print("\n--- 录入成绩 ---\n");
+                std::print("请输入学生ID：");
+                std::getline(std::cin, studentId);
+                std::print("请输入课程ID：");
+                std::getline(std::cin, courseId);
+                std::print("请输入成绩（0-100）：");
+                std::cin >> score;
+                clearInputBuffer();
+
+                // 调用EnrollmentProxy录入成绩（录入和修改共用updateScore方法）
+                if (db::EnrollmentProxy::updateScore(studentId, courseId, score)) {
+                    std::print("✅ 成绩录入成功！\n");
+                } else {
+                    std::print("❌ 成绩录入失败！\n");
+                }
                 break;
-            case 3:
-                std::print("\n✅ 已选择功能 [3]：修改成绩 (Modify Grade)\n");
+            }
+            case 3: { // 加花括号包裹变量初始化
+                std::string studentId, courseId;
+                int score;
+                std::print("\n--- 修改成绩 ---\n");
+                std::print("请输入学生ID：");
+                std::getline(std::cin, studentId);
+                std::print("请输入课程ID：");
+                std::getline(std::cin, courseId);
+                std::print("请输入新成绩（0-100）：");
+                std::cin >> score;
+                clearInputBuffer();
+
+                // 调用EnrollmentProxy修改成绩（与录入共用同一方法）
+                if (db::EnrollmentProxy::updateScore(studentId, courseId, score)) {
+                    std::print("✅ 成绩修改成功！\n");
+                } else {
+                    std::print("❌ 成绩修改失败！\n");
+                }
                 break;
+            }
             case 4:
                 std::print("\n✅ 退出登录成功！返回登录界面。\n");
                 return;
@@ -272,7 +314,7 @@ void UserInterface::showTeacherMenu(std::string_view teacherId) {
 * @brief 显示教学秘书主菜单
 */
 void UserInterface::showSecretaryMenu(std::string_view secretaryId) {
-    int choice = 0;
+    int choice = 0; // 确保变量在正确作用域声明
     while (true) {
         std::print("\n\n\n");
         std::print("===============================================\n");
@@ -296,15 +338,59 @@ void UserInterface::showSecretaryMenu(std::string_view secretaryId) {
         clearInputBuffer();
 
         switch (choice) {
-            case 1:
-                std::print("\n✅ 已选择功能 [1]：创建课程 (Create Course)\n");
+            case 1: { // 加花括号包裹变量初始化，解决跨case报错
+                std::string courseId, courseName;
+                int capacity, weekday, timeslot;
+                std::print("\n--- 创建课程 ---\n");
+                // 接收课程基本信息输入
+                std::print("请输入课程ID：");
+                std::getline(std::cin, courseId);
+                std::print("请输入课程名称：");
+                std::getline(std::cin, courseName);
+                std::print("请输入课程容量（默认60，直接回车使用默认值）：");
+                std::string capacity_str;
+                std::getline(std::cin, capacity_str);
+                capacity = capacity_str.empty() ? 60 : std::stoi(capacity_str);
+                std::print("请输入上课星期（1=周一，5=周五）：");
+                std::cin >> weekday;
+                std::print("请输入上课时段（1=1-2节，2=3-4节，3=5-6节，4=7-8节）：");
+                std::cin >> timeslot;
+                clearInputBuffer();
+
+                // 构建Course领域对象
+                Course course(courseId, courseName, capacity);
+                // 调用CourseProxy创建课程
+                if (db::CourseProxy::addCourse(course, weekday, timeslot)) {
+                    std::print("✅ 课程创建成功！\n");
+                } else {
+                    std::print("❌ 课程创建失败！\n");
+                }
                 break;
+            }
             case 2:
                 std::print("\n✅ 已选择功能 [2]：分配教师 (Assign Teacher)\n");
+                std::print("(功能开发中...)\n");
                 break;
-            case 3:
-                std::print("\n✅ 已选择功能 [3]：设置上课时间 (Set Class Time)\n");
+            case 3: { // 加花括号包裹变量初始化
+                std::string courseId;
+                int weekday, timeslot;
+                std::print("\n--- 设置上课时间 ---\n");
+                std::print("请输入课程ID：");
+                std::getline(std::cin, courseId);
+                std::print("请输入新上课星期（1=周一，5=周五）：");
+                std::cin >> weekday;
+                std::print("请输入新上课时段（1=1-2节，2=3-4节，3=5-6节，4=7-8节）：");
+                std::cin >> timeslot;
+                clearInputBuffer();
+
+                // 调用CourseProxy修改上课时间
+                if (db::CourseProxy::updateClassTime(courseId, weekday, timeslot)) {
+                    std::print("✅ 上课时间设置成功！\n");
+                } else {
+                    std::print("❌ 上课时间设置失败！\n");
+                }
                 break;
+            }
             case 4:
                 std::print("\n✅ 退出登录成功！返回登录界面。\n");
                 return;

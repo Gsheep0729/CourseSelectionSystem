@@ -24,3 +24,5 @@ export import :domain;
 export import :app.controller;
 export import :infrastructure;
 export import :presentation;
+export import :infrastructure.course_proxy;  // 新增：导出CourseProxy
+export import :infrastructure.enrollment_proxy;  // 新增：导出EnrollmentProxy

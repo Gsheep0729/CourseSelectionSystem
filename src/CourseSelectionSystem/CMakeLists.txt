@@ -12,8 +12,6 @@ pkg_check_modules(PQXX REQUIRED libpqxx)
 # 1. 定义各层级的模块文件列表 (Code Grouping)
 add_executable(CourseSelectionSystem
     main.cpp
-
-
 )
 
 # 表现层模块 (Presentation Layer)
@@ -42,6 +40,8 @@ set(DOMAIN_MODULES
 set(INFRASTRUCTURE_MODULES
     # CourseSelectionSystem/infrastructure/.cppm
     infrastructure/infra.db_adapter.cppm
+    infrastructure/infra.enrollment_proxy.cppm
+    infrastructure/infra.course_proxy.cppm
 )
 
 # 2. 配置 IDE 中的显示分组 (IDE Display Grouping)

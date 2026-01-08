@@ -28,6 +28,19 @@ export class Course {
 public:
     // 构造函数
     Course(std::string id, std::string name, int capacity = 60);
+    // domain/dom.course.cppm 中 Course 类添加以下公有方法
+    /**
+     * @brief 获取课程名称
+     * @return 课程名称字符串
+     */
+    std::string getName() const { return m_name; }
+
+    /**
+     * @brief 获取课程容量
+     * @return 课程最大容量
+     */
+    int getCapacity() const { return m_capacity; }
+
 
 
     // 检查课程是否已满
@@ -38,6 +51,8 @@ public:
 
     // 移除学生报名信息
     void removeEnrollment(Student* s);
+
+
 
     // 获取课程 ID
     std::string getId() const { return m_id; }
