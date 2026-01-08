@@ -19,9 +19,9 @@
 export module course_system:domain.student;
 
 import std;
+import :domain.course;
 
-export class Course;
-
+// export class Course; // Already imported via :domain.course
 
 export class Student {
 public:
@@ -64,6 +64,29 @@ private:
 Student::Student(std::string id, std::string name)
     : m_id(id), m_name(name) {}
 
+
+void Student::enrollIn(Course* c) {
+    if (!c) return;
+    // 检查是否已选
+    for (auto* enrolled : m_courses) {
+        if (enrolled->getId() == c->getId()) return;
+    }
+    
+    if (c->acceptEnrollment(this)) {
+        m_courses.push_back(c);
+    }
+}
+
+void Student::dropCourse(Course* c) {
+    if (!c) return;
+    auto it = std::find_if(m_courses.begin(), m_courses.end(), 
+        [c](Course* enrolled){ return enrolled->getId() == c->getId(); });
+        
+    if (it != m_courses.end()) {
+        c->removeEnrollment(this);
+        m_courses.erase(it);
+    }
+}
 
 /**
 * @brief 检查学生是否匹配指定 ID

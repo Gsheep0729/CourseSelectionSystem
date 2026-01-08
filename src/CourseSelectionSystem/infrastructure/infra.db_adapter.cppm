@@ -52,12 +52,6 @@ public:
 
     // 核心任务 1: 复杂查询 (JOIN)
     Student* findById(const std::string& id) {
-        // 使用 LEFT JOIN 一次性获取学生信息和所有选课信息
-        // 假设表名：students, courses, student_courses
-        // students(id, name)
-        // courses(id, name, capacity, weekday, timeslot)
-        // student_courses(student_id, course_id)
-        
         std::string sql = std::format(
             "SELECT s.name, c.id, c.name, c.capacity, c.weekday, c.timeslot "
             "FROM students s "
@@ -73,12 +67,11 @@ public:
         }
 
         const auto& rows = *res_opt;
-        std::string name = rows[0][0]; // 第一行第一列是姓名
+        std::string name = rows[0][0]; 
         
         Student* student = new Student(id, name);
 
         for (const auto& row : rows) {
-            // 如果 course_id (row[1]) 为空，说明没选课
             if (row[1].empty()) continue;
 
             std::string c_id = row[1];
@@ -88,9 +81,15 @@ public:
             int timeslot = row[5].empty() ? 0 : std::stoi(row[5]);
 
             // 重建 Course 对象
-            Course* course = new Course(c_id, c_name, c_capacity, Timeslot{weekday, timeslot});
+            // 注意：这里恢复的 Course 对象只是为了显示学生选了什么课
+            // 它的 enrolled 计数可能是不准确的，除非我们再去查询一次
+            // 为了性能，这里暂时设为 0 或者不设置，因为 Student::restoreEnrollment 只是建立链接
+            // 使用默认学分和教师ID (0, "")
+            Course* course = new Course(c_id, c_name, c_capacity, 0, "", Timeslot{weekday, timeslot});
+            
+            // 简单的恢复已选人数，如果需要的话 (可选优化: join count)
+            // 这里为了保持简单，暂不查询该课程的总人数，因为只是查看学生信息
 
-            // 恢复状态 (绕过业务检查)
             student->restoreEnrollment(course);
         }
 
@@ -109,7 +108,7 @@ public:
         if (!m_db.execute(sql_student)) return false;
 
         // 2. 保存选课关系
-        // 先删后插
+        // 先删后插 (简单粗暴但有效)
         std::string sql_del = std::format("DELETE FROM student_courses WHERE student_id = '{}'", student.getId());
         if (!m_db.execute(sql_del)) return false;
 
@@ -125,29 +124,48 @@ public:
     }
 };
 
-// Stub for CourseProxy
 class CourseProxy {
 private:
     DBAdapter& m_db;
 public:
     explicit CourseProxy(DBAdapter& db) : m_db(db) {}
+    
     Course* findById(const std::string& id) {
-        auto res = m_db.query(std::format("SELECT name, capacity, weekday, timeslot FROM courses WHERE id = '{}'", id));
-        if (res && !res->empty()) {
-            int wd = (*res)[0][2].empty() ? 0 : std::stoi((*res)[0][2]);
-            int ts = (*res)[0][3].empty() ? 0 : std::stoi((*res)[0][3]);
-            return new Course(id, (*res)[0][0], std::stoi((*res)[0][1]), Timeslot{wd, ts});
+        // 1. 获取课程基本信息
+        auto res = m_db.query(std::format("SELECT name, capacity, weekday, timeslot, credit, teacher_id FROM courses WHERE id = '{}'", id));
+        if (!res || res->empty()) {
+            return nullptr;
         }
-        return nullptr;
+        
+        std::string name = (*res)[0][0];
+        int capacity = std::stoi((*res)[0][1]);
+        int wd = (*res)[0][2].empty() ? 0 : std::stoi((*res)[0][2]);
+        int ts = (*res)[0][3].empty() ? 0 : std::stoi((*res)[0][3]);
+        int credit = (*res)[0][4].empty() ? 0 : std::stoi((*res)[0][4]);
+        std::string tid = (*res)[0][5];
+
+        Course* course = new Course(id, name, capacity, credit, tid, Timeslot{wd, ts});
+
+        // 2. 获取当前已选人数
+        auto count_res = m_db.query(std::format("SELECT COUNT(*) FROM student_courses WHERE course_id = '{}'", id));
+        if (count_res && !count_res->empty()) {
+            int count = std::stoi((*count_res)[0][0]);
+            course->setEnrolled(count);
+        }
+
+        return course;
     }
+
     bool save(const Course& c) {
         std::string sql = std::format(
-            "INSERT INTO courses (id, name, capacity, weekday, timeslot) VALUES ('{}', '{}', {}, {}, {}) "
-            "ON CONFLICT (id) DO NOTHING",
-            c.getId(), c.getName(), c.getCapacity(), c.getTimeslot().weekday, c.getTimeslot().timeslot
+            "INSERT INTO courses (id, name, capacity, weekday, timeslot, credit, teacher_id) VALUES ('{}', '{}', {}, {}, {}, {}, '{}') "
+            "ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, capacity=EXCLUDED.capacity, weekday=EXCLUDED.weekday, timeslot=EXCLUDED.timeslot, credit=EXCLUDED.credit, teacher_id=EXCLUDED.teacher_id",
+            c.getId(), c.getName(), c.getCapacity(), c.getTimeslot().weekday, c.getTimeslot().timeslot, c.getCredit(), c.getTeacherId()
         );
         return m_db.execute(sql);
     }
+    
+    // Stubs for CLI compatibility
     static bool addCourse(const Course&, int, int) { return true; }
     static bool updateClassTime(const std::string&, int, int) { return true; }
 };

@@ -27,10 +27,13 @@ import std;
 
 export class SystemController {
 public:
+    // 构造函数
+    SystemController();
+
     // 初始化系统 (连接数据库, 建表, 初始化数据)
     void initialize();
 
-    // 运行系统 (CLI模式下可能不再需要此处的循环逻辑，保留接口兼容)
+    // 运行系统
     void run();
 
     // 执行选课操作
@@ -40,20 +43,16 @@ public:
     void performDrop(std::string sid, std::string cid);
 
 private:
-    db::DBAdapter m_db; // 数据库适配器
-
-    // 辅助函数：获取课程信息
-    struct CourseInfo {
-        std::string id;
-        std::string name;
-        int enrolled;
-        int capacity;
-        bool valid;
-    };
-    CourseInfo getCourseInfo(const std::string& cid);
+    db::DBAdapter m_db;           // 数据库适配器 (用于建表)
+    db::StudentProxy m_studentProxy; // 学生数据代理
+    db::CourseProxy m_courseProxy;   // 课程数据代理
 };
 
 // --- Implementation ---
+
+SystemController::SystemController() 
+    : m_studentProxy(m_db), m_courseProxy(m_db) {
+}
 
 /**
 * @brief 初始化系统
@@ -66,23 +65,33 @@ void SystemController::initialize() {
         return;
     }
 
-    // 重置数据库 (为了测试方便，生产环境应去除 DROP)
-    m_db.execute("DROP TABLE IF EXISTS enrollment");
-    m_db.execute("DROP TABLE IF EXISTS course");
-    m_db.execute("DROP TABLE IF EXISTS student");
+    // 重置数据库
+    m_db.execute("DROP TABLE IF EXISTS student_courses");
+    m_db.execute("DROP TABLE IF EXISTS enrollment"); // cleanup old
+    m_db.execute("DROP TABLE IF EXISTS courses");
+    m_db.execute("DROP TABLE IF EXISTS course"); // cleanup old
+    m_db.execute("DROP TABLE IF EXISTS students");
+    m_db.execute("DROP TABLE IF EXISTS student"); // cleanup old
+    m_db.execute("DROP TABLE IF EXISTS users");
     
     // 创建表
-    m_db.execute("CREATE TABLE student (id TEXT PRIMARY KEY, name TEXT)");
-    m_db.execute("CREATE TABLE course (id TEXT PRIMARY KEY, name TEXT, capacity INT DEFAULT 60, enrolled INT DEFAULT 0)");
-    m_db.execute("CREATE TABLE enrollment (student_id TEXT, course_id TEXT, PRIMARY KEY (student_id, course_id))");
+    m_db.execute("CREATE TABLE students (id TEXT PRIMARY KEY, name TEXT, password TEXT DEFAULT '123456')");
+    // 包含 credit, teacher_id, weekday (1-5), timeslot (1-4)
+    m_db.execute("CREATE TABLE courses (id TEXT PRIMARY KEY, name TEXT, capacity INT DEFAULT 60, credit INT DEFAULT 2, teacher_id TEXT, weekday INT, timeslot INT)");
+    // 包含 score
+    m_db.execute("CREATE TABLE student_courses (student_id TEXT, course_id TEXT, score INT DEFAULT -1, PRIMARY KEY (student_id, course_id))");
+    // 用户表 (角色管理)
+    m_db.execute("CREATE TABLE users (id TEXT PRIMARY KEY, password TEXT, role TEXT)");
 
     std::print("Database initialized.\n");
 
-    // 加载初始数据
+    // 加载初始数据 - Student
     std::string s_id = "2024051604085";
     std::string s_name = "Gao Yang"; 
-    m_db.execute(std::format("INSERT INTO student (id, name) VALUES ('{}', '{}')", s_id, s_name));
+    Student s(s_id, s_name);
+    m_studentProxy.save(s);
 
+    // 加载初始数据 - Courses
     std::vector<std::pair<std::string, std::string>> manual_courses = {
         {"C0017", "C语言程序设计"},
         {"C0001", "高等数学"},
@@ -104,13 +113,23 @@ void SystemController::initialize() {
     };
 
     int course_count = 0;
+    int wd = 1, ts = 1;
     for (const auto& [id, name] : manual_courses) {
-        if (m_db.execute(std::format("INSERT INTO course (id, name) VALUES ('{}', '{}')", id, name))) {
+        // 简单分配时间、学分、教师
+        Course c(id, name, 60, 3, "T001", Timeslot{wd, ts});
+        if (m_courseProxy.save(c)) {
             course_count++;
         }
+        ts++;
+        if (ts > 4) { ts = 1; wd++; }
+        if (wd > 5) wd = 1;
     }
     
-    std::print("Loaded 1 student and {} courses.\n", course_count);
+    // 初始化一些用户
+    m_db.execute("INSERT INTO users (id, password, role) VALUES ('admin', 'admin', 'admin')");
+    m_db.execute(std::format("INSERT INTO users (id, password, role) VALUES ('{}', '123456', 'student')", s_id));
+    
+    std::print("Loaded 1 student and {} courses via Proxies.\n", course_count);
 }
 
 
@@ -123,87 +142,110 @@ void SystemController::run() {
 }
 
 
-SystemController::CourseInfo SystemController::getCourseInfo(const std::string& cid) {
-    auto res = m_db.query(std::format("SELECT name, enrolled, capacity FROM course WHERE id = '{}'", cid));
-    if (res && !res->empty()) {
-        try {
-            return {
-                cid, 
-                (*res)[0][0], 
-                std::stoi((*res)[0][1]), 
-                std::stoi((*res)[0][2]), 
-                true
-            };
-        } catch (...) {
-            return {"", "", 0, 0, false};
-        }
-    }
-    return {"", "", 0, 0, false};
-}
-
 /**
 * @brief 执行选课操作
 */
 void SystemController::performEnrollment(std::string sid, std::string cid) {
-    auto info = getCourseInfo(cid);
-    if (!info.valid) {
+    // 1. 加载聚合根 (Student)
+    auto student = m_studentProxy.findById(sid);
+    if (!student) {
+        std::print("Error: Student {} not found.\n", sid);
+        return;
+    }
+
+    // 2. 加载课程 (Course)
+    auto course = m_courseProxy.findById(cid);
+    if (!course) {
         std::print("Error: Course {} not found.\n", cid);
+        delete student;
         return;
     }
 
-    // 检查是否已选
-    auto check = m_db.query(std::format("SELECT 1 FROM enrollment WHERE student_id='{}' AND course_id='{}'", sid, cid));
-    if (check && !check->empty()) {
-        std::print("Error: Student {} is already enrolled in [Course] {} - {} ({}/{})\n", 
-              sid, info.id, info.name, info.enrolled, info.capacity);
+    // 3. 业务检查与操作
+    // 检查容量
+    if (course->isFull()) {
+        std::print("Error: Course {} is full.\n", course->getName());
+        delete student; delete course;
         return;
     }
 
-    if (info.enrolled >= info.capacity) {
-        std::print("Error: Course {} is full.\n", info.name);
+    // 检查重复选课
+    bool alreadyEnrolled = false;
+    for (auto* c : student->getEnrolledCourses()) {
+        if (c->getId() == cid) {
+            alreadyEnrolled = true;
+            break;
+        }
+    }
+    if (alreadyEnrolled) {
+        std::print("Error: Student {} is already enrolled in [Course] {} - {}\n", 
+              sid, course->getId(), course->getName());
+        delete student; delete course;
         return;
     }
 
-    // 执行事务
-    bool ok1 = m_db.execute(std::format("INSERT INTO enrollment VALUES ('{}', '{}')", sid, cid));
-    bool ok2 = m_db.execute(std::format("UPDATE course SET enrolled = enrolled + 1 WHERE id = '{}'", cid));
+    // 执行选课
+    student->enrollIn(course);
 
-    if (ok1 && ok2) {
-        info.enrolled++; 
+    // 4. 持久化
+    if (m_studentProxy.save(*student)) {
+        // 更新内存中的显示计数 (虽然这里是局部对象，主要用于反馈)
+        course->setEnrolled(course->getEnrolled() + 1);
         std::print("Success: Student {} enrolled in [Course] {} - {} ({}/{})\n", 
-              sid, info.id, info.name, info.enrolled, info.capacity);
+              sid, course->getId(), course->getName(), course->getEnrolled(), course->getCapacity());
     } else {
         std::print("Error: Database failure during enrollment.\n");
     }
+
+    delete student;
+    delete course;
 }
 
 /**
 * @brief 执行退课操作
 */
 void SystemController::performDrop(std::string sid, std::string cid) {
-    auto info = getCourseInfo(cid); // 获取当前信息用于打印
-    if (!info.valid) {
-        std::print("Error: Course {} not found.\n", cid);
+    auto student = m_studentProxy.findById(sid);
+    if (!student) {
+        std::print("Error: Student {} not found.\n", sid);
         return;
     }
 
-    // 检查是否已选
-    auto check = m_db.query(std::format("SELECT 1 FROM enrollment WHERE student_id='{}' AND course_id='{}'", sid, cid));
-    if (!check || check->empty()) {
-        std::print("Error: Student {} is not enrolled in [Course] {} - {} ({}/{})\n", 
-              sid, info.id, info.name, info.enrolled, info.capacity);
+    // 查找学生是否已选该课
+    Course* targetCourse = nullptr;
+    for (auto* c : student->getEnrolledCourses()) {
+        if (c->getId() == cid) {
+            targetCourse = c;
+            break;
+        }
+    }
+
+    if (!targetCourse) {
+        // 尝试单独加载课程以获取名称
+        auto tempCourse = m_courseProxy.findById(cid);
+        if (tempCourse) {
+            std::print("Error: Student {} is not enrolled in [Course] {} - {}\n", 
+                  sid, tempCourse->getId(), tempCourse->getName());
+            delete tempCourse;
+        } else {
+            std::print("Error: Course {} not found.\n", cid);
+        }
+        delete student;
         return;
     }
 
-    // 执行事务
-    bool ok1 = m_db.execute(std::format("DELETE FROM enrollment WHERE student_id='{}' AND course_id='{}'", sid, cid));
-    bool ok2 = m_db.execute(std::format("UPDATE course SET enrolled = enrolled - 1 WHERE id = '{}'", cid));
+    // 3. 业务操作
+    student->dropCourse(targetCourse);
 
-    if (ok1 && ok2) {
-        info.enrolled--;
-        std::print("Success: Student {} dropped [Course] {} - {} ({}/{})\n", 
-              sid, info.id, info.name, info.enrolled, info.capacity);
+    // 4. 持久化
+    if (m_studentProxy.save(*student)) {
+        std::print("Success: Student {} dropped [Course] {} - {}\n", 
+              sid, targetCourse->getId(), targetCourse->getName());
     } else {
         std::print("Error: Database failure during drop.\n");
     }
+
+    delete student;
+    // targetCourse 由 student 析构时管理 (见之前讨论，这里手动 delete)
+    delete targetCourse; 
 }
