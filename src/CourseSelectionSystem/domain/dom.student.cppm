@@ -37,6 +37,19 @@ public:
     // 检查学生是否匹配指定 ID
     bool hasId(std::string_view id) const;
 
+    std::string getId() const { return m_id; }
+    std::string getName() const { return m_name; }
+
+    // 仅供 Proxy 恢复数据使用，不进行冲突检查
+    void restoreEnrollment(Course* c) {
+        if (c) m_courses.push_back(c);
+    }
+    
+    // 获取已选课程列表
+    const std::vector<Course*>& getEnrolledCourses() const {
+        return m_courses;
+    }
+
     // 获取学生详细信息字符串
     std::string student_info() const;
 

@@ -19,6 +19,7 @@
 export module course_system:domain.course;
 
 import std;
+import :domain.timeslot;
 
 // 前向声明，解决循环引用
 export class Student;
@@ -27,7 +28,7 @@ export class Student;
 export class Course {
 public:
     // 构造函数
-    Course(std::string id, std::string name, int capacity = 60);
+    Course(std::string id, std::string name, int capacity = 60, Timeslot timeslot = {0, 0});
     // domain/dom.course.cppm 中 Course 类添加以下公有方法
     /**
      * @brief 获取课程名称
@@ -41,7 +42,11 @@ public:
      */
     int getCapacity() const { return m_capacity; }
 
-
+    /**
+     * @brief 获取上课时间
+     * @return 时间段
+     */
+    Timeslot getTimeslot() const { return m_timeslot; }
 
     // 检查课程是否已满
     bool isFull() const;
@@ -67,12 +72,13 @@ private:
     std::string m_id;                 // 课程 ID
     std::string m_name;               // 课程名称
     int m_capacity;                   // 最大容量
+    Timeslot m_timeslot;              // 上课时间
     std::vector<Student*> m_students; // 已选修该课程的学生列表
 };
 
 // --- Implementation ---
-Course::Course(std::string id, std::string name, int capacity)
-    : m_id(id), m_name(name), m_capacity(capacity) {}
+Course::Course(std::string id, std::string name, int capacity, Timeslot timeslot)
+    : m_id(id), m_name(name), m_capacity(capacity), m_timeslot(timeslot) {}
 
 
 /**
@@ -115,9 +121,9 @@ bool Course::hasId(std::string_view id) const {
 
 /**
  * @brief 获取课程详细信息字符串
- * @return 格式化后的课程信息 (ID - Name (Current/Max))
+ * @return 格式化后的课程信息 (ID - Name (Current/Max) [Timeslot])
  */
 std::string Course::course_info() const {
-    return std::format("[Course] {} - {} ({}/{})",
-        m_id, m_name, m_students.size(), m_capacity);
+    return std::format("[Course] {} - {} ({}/{}) [{}]",
+        m_id, m_name, m_students.size(), m_capacity, m_timeslot.toString());
 }

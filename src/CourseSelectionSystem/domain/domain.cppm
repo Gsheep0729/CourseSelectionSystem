@@ -18,9 +18,10 @@
 * * 添加基础测试用例与 CLI 输出
 */
 export module course_system:domain;
-//export import :domain.teacher;
+export import :domain.teacher;
 export import :domain.student;
 export import :domain.course;
+export import :domain.timeslot;
 
 import std;
 
@@ -31,12 +32,22 @@ import std;
 void Student::enrollIn(Course* c) {
     if (!c) return;
 
-    // 检查是否已经选过该课程
+    // 1. 检查是否已经选过该课程
     if (std::ranges::contains(m_courses, c)) {
         std::print("Warning: Student {} already enrolled in {}.\n", m_name, c->course_info());
         return;
     }
 
+    // 2. 时间冲突检查 (Task B 核心要求)
+    for (const auto* existing : m_courses) {
+        if (existing->getTimeslot().overlaps(c->getTimeslot())) {
+            std::print("Error: Time conflict! {} overlaps with already enrolled {}.\n", 
+                c->course_info(), existing->course_info());
+            return;
+        }
+    }
+
+    // 3. 执行选课 (含容量检查)
     if (c->acceptEnrollment(this)) {
         m_courses.push_back(c);
         std::print("Success: Student {} enrolled in {}.\n", m_name, c->course_info());

@@ -23,10 +23,8 @@ export module course_system:presentation;
 // 模块导入必须放在全局作用域（函数外），C++23不允许函数内import
 import std;
 import :app.controller;
-import :domain;                      // 导入Course类所在的领域模块
-import :infrastructure;              // 基础数据库适配器模块
-import :infrastructure.course_proxy; // 课程代理模块（移到全局作用域）
-import :infrastructure.enrollment_proxy; // 选课代理模块（移到全局作用域）
+import :domain;                      
+import :infrastructure;              
 
 // --- 类声明 ---
 export class UserInterface {
