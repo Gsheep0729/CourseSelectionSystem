@@ -23,41 +23,11 @@ module;
 #include <optional>
 #include <print>
 
-// =========================================================================================
-// [Workaround Start] 手动内联 db_core.h
-// 目的：规避 GCC/CMake 模块扫描器在中文路径下的 "INCLUDE-TRANSLATE" 错误。
-// 注意：必须保持与 lib_db_core/include/db_core.h 完全一致！
-// =========================================================================================
-
-using Row = std::vector<std::string>;
-using Result = std::vector<Row>;
-
-class DBCore {
-public:
-    DBCore();
-    ~DBCore();
-
-    DBCore(const DBCore&) = delete;
-    DBCore& operator=(const DBCore&) = delete;
-    DBCore(DBCore&&) noexcept;
-    DBCore& operator=(DBCore&&) noexcept;
-
-    void set_credentials(const std::string& conn_str);
-    bool connect();
-    bool execute(const std::string& sql);
-    std::optional<Result> query(const std::string& sql);
-    bool is_connected() const;
-
-private:
-    struct Impl;
-    std::unique_ptr<Impl> pImpl;
-};
-// =========================================================================================
-// [Workaround End]
-// =========================================================================================
+#include "db_core.h"
 
 module infrastructure; // 属于 course_system 主模块的实现单元
 import std;
+
 
 namespace db {
 
