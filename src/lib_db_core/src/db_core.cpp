@@ -1,13 +1,18 @@
 /**
- * @file    src/lib_db_core/src/db_core.cpp
- * @date    2026-01-09
- * @author  GY
- * @brief   Database Core Library Implementation
- *
- * 实现了 DBCore 类。
- * 包含 libpqxx 头文件，处理具体的数据库交互逻辑。
- * 实现了异常捕获机制，确保异常不逃逸出库边界。
- */
+* @file    src/lib_db_core/src/db_core.cpp
+* @date    2026-01-10
+* @author  GY
+* @brief   数据库核心库实现文件
+*
+* 实现 db_core.h 中定义的数据库操作接口。
+* 包含 PIMPL (DBCoreImpl) 的具体定义，持有 pqxx::connection 对象。
+* 负责执行实际的 SQL 语句，并将 pqxx::result 转换为通用的 Result 类型。
+*
+* Change Log:
+* [v1.0] GY   2026-01-10
+* * 初始版本：实现 PIMPL 模式封装 pqxx::connection。
+* * 提供基本的 connect, execute, query 接口。
+* */
 
 #include "db_core.h"
 #include <pqxx/pqxx>
@@ -17,9 +22,9 @@
 
 // PIMPL 实现结构体定义
 struct DBCore::Impl {
-    std::string connection_string;
-    std::unique_ptr<pqxx::connection> connection;
-    std::mutex db_mutex; // 保护连接对象的线程安全
+    std::string connection_string;          // 数据库连接字符串
+    std::unique_ptr<pqxx::connection> connection; // pqxx 连接对象指针
+    std::mutex db_mutex;                    // 保护连接对象的线程安全互斥锁
 
     /**
      * @brief 确保连接可用
@@ -104,6 +109,7 @@ std::optional<Result> DBCore::query(const std::string& sql) {
             Row current_row;
             current_row.reserve(row.size());
             for (const auto& field : row) {
+                // 处理数据库中的 NULL 值，将其转换为空字符串，防止程序崩溃
                 if (field.is_null()) {
                     current_row.push_back(""); // 空值转空字符串
                 } else {

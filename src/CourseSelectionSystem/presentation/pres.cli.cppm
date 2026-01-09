@@ -2,7 +2,7 @@
 * @file    src/CourseSelectionSystem/presentation/pres.cli.cppm
 * @date    2026-01-07
 * @author  Zhang Tao
-* @brief   Presentation layer partition (CLI Menu System)
+* @brief   表现层分区：CLI 菜单系统
 *
 * 表现层模块接口与实现，定义并实现用户交互核心类 UserInterface
 * 提供登录菜单、各角色功能菜单的完整逻辑，遵循 C++23 Modules 规范
@@ -27,49 +27,17 @@ import std;
 // --- 类声明 ---
 export class UserInterface {
 public:
-    /**
-     * @brief 设置系统控制器
-     * @param controller 系统控制器指针
-     */
-    void setController(SystemController* controller);
-
-    /**
-     * @brief 显示登录菜单，处理用户登录流程
-     * @return 登录成功的用户ID（非空）
-     */
-    std::string showLoginMenu();
-
-    /**
-     * @brief 显示学生主菜单（循环交互）
-     * @param studentId 登录学生的ID
-     */
-    void showStudentMenu(std::string_view studentId);
-
-    /**
-     * @brief 显示教师主菜单（循环交互）
-     * @param teacherId 登录教师的ID
-     */
-    void showTeacherMenu(std::string_view teacherId);
-
-    /**
-     * @brief 显示教学秘书主菜单（循环交互）
-     * @param secretaryId 登录教学秘书的ID
-     */
-    void showSecretaryMenu(std::string_view secretaryId);
+    void setController(SystemController* controller); // 注入系统控制器
+    std::string showLoginMenu(); // 显示登录主菜单
+    void showStudentMenu(std::string_view studentId); // 显示学生功能菜单
+    void showTeacherMenu(std::string_view teacherId); // 显示教师功能菜单
+    void showSecretaryMenu(std::string_view secretaryId); // 显示教学秘书功能菜单
 
 private:
-    SystemController* m_controller{nullptr};
+    SystemController* m_controller{nullptr}; // 关联的系统控制器指针
 
-    /**
-     * @brief 清除输入缓冲区，避免无效输入导致的交互异常
-     */
-    void clearInputBuffer() const;
-
-    /**
-     * @brief 显示角色选择菜单，返回用户选择的角色类型
-     * @return 1=学生，2=教师，3=教学秘书
-     */
-    int showRoleSelectionMenu() const;
+    void clearInputBuffer() const; // 清除输入流缓冲区
+    int showRoleSelectionMenu() const; // 显示角色选择菜单
 };
 
 // --- 实现部分 ---

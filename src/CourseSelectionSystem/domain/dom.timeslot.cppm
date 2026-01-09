@@ -2,16 +2,17 @@
 * @file    src/CourseSelectionSystem/domain/dom.timeslot.cppm
 * @date    2026-01-10
 * @author  GY
-* @brief   Domain partition: Timeslot value object
+* @brief   领域层分区：时间槽值对象
 *
-* dom.timeslot: 领域层时间槽模块
 * 定义时间槽值对象，用于表示课程的上课时间（星期 + 节次）
+* 提供时间冲突检测逻辑
 * 提供时间冲突检测逻辑
 *
 * Change Log:
 * [v1.0] GY   2026-01-10
 * * 初始版本：实现 Timeslot 类及 overlaps 方法
 */
+
 export module domain:timeslot;
 
 import std;

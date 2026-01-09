@@ -1,14 +1,19 @@
 /**
 * @file    src/CourseSelectionSystem/domain/dom.course.cppm
-* @date    2026-01-10
+* @date    2026-01-06
 * @author  GY
-* @brief   Domain partition: Course entity
+* @brief   领域层分区：课程实体
 *
-* dom.course:领域层课程实体模块
-* 定义课程实体类，包含课程完整信息（ID、名称、学分、教师、时间槽、容量）
+* 定义课程实体类，包含课程基本信息（ID、名称、容量）
 * 维护已选修该课程的学生列表，提供容量控制和选课管理功能
 *
 * Change Log:
+* [v1.0] GY   2026-01-06
+* * 初始化项目架构 (基于 C++23 Modules)
+* * 实现领域层实体 (Student, Course) 及其核心逻辑
+* * 实现应用层控制器 (SystemController) 管理选课流程
+* * 实现选课与退课功能，包含容量检查与重复选课验证
+* * 添加基础测试用例与 CLI 输出
 * [v2.0] GY   2026-01-10
 * * 增加字段：credit, teacherId, teacherName, timeslot
 * * 更新构造函数以支持完整信息

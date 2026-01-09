@@ -1,18 +1,24 @@
 /**
 * @file    src/CourseSelectionSystem/domain/dom.student.cppm
-* @date    2026-01-10
+* @date    2026-01-06
 * @author  GY
-* @brief   Domain partition: Student entity
+* @brief   领域层分区：学生实体
 *
-* dom.student:领域层学生实体模块
 * 定义学生实体类，包含学生基本信息（ID、姓名）
 * 维护学生已选课程列表，提供选课和退课功能
 *
 * Change Log:
+* [v1.0] GY   2026-01-06
+* * 初始化项目架构 (基于 C++23 Modules)
+* * 实现领域层实体 (Student, Course) 及其核心逻辑
+* * 实现应用层控制器 (SystemController) 管理选课流程
+* * 实现选课与退课功能，包含容量检查与重复选课验证
+* * 添加基础测试用例与 CLI 输出
 * [v2.0] GY   2026-01-10
 * * 增加 hasTimeConflict 方法
 * * 优化 enrollIn/dropCourse 逻辑以配合 Proxy
 */
+
 export module domain:student;
 
 import std;

@@ -2,11 +2,16 @@
 * @file    src/CourseSelectionSystem/infrastructure/infra.student_proxy.cppm
 * @date    2026-01-10
 * @author  GY
-* @brief   Infrastructure partition: Student Proxy
+* @brief   基础设施层分区：学生数据代理
 *
-* 负责 Student 对象的持久化操作。
-* 处理 Student 与 Course 的关联关系加载 (N+1 问题处理的简化版).
+* 负责学生实体与数据库表之间的映射。
+* 提供了学生信息的增删改查以及选课相关的持久化操作。
+*
+* Change Log:
+* [v1.0] GY   2026-01-10
+* * 初始版本：实现 StudentProxy 类。
 */
+
 export module infrastructure:student_proxy;
 
 import domain;
@@ -18,34 +23,10 @@ export namespace infra {
 
 class StudentProxy {
 public:
-    /**
-     * @brief 根据 ID 查找学生，并加载其已选课程
-     * @param db 数据库适配器
-     * @param id 学生 ID
-     * @return 学生对象指针，如果未找到返回 nullptr
-     */
-    static std::unique_ptr<Student> findStudentById(db::DBAdapter& db, std::string_view id);
-
-    /**
-     * @brief 保存选课关系到数据库
-     * @param db 数据库适配器
-     * @param studentId 学生 ID
-     * @param courseId 课程 ID
-     * @return true 成功, false 失败
-     */
-    static bool saveEnrollment(db::DBAdapter& db, std::string_view studentId, std::string_view courseId);
-
-    /**
-     * @brief 删除选课关系
-     * @param db 数据库适配器
-     * @param studentId 学生 ID
-     * @param courseId 课程 ID
-     * @return true 成功, false 失败
-     */
-    static bool removeEnrollment(db::DBAdapter& db, std::string_view studentId, std::string_view courseId);
-    
-    // 检查是否已选 (用于快速校验)
-    static bool isEnrolled(db::DBAdapter& db, std::string_view studentId, std::string_view courseId);
+    static std::unique_ptr<Student> findStudentById(db::DBAdapter& db, std::string_view id); // 根据 ID 查找学生并加载课程
+    static bool saveEnrollment(db::DBAdapter& db, std::string_view studentId, std::string_view courseId); // 保存选课关系
+    static bool removeEnrollment(db::DBAdapter& db, std::string_view studentId, std::string_view courseId); // 删除选课关系
+    static bool isEnrolled(db::DBAdapter& db, std::string_view studentId, std::string_view courseId); // 检查是否已选课
 };
 
 } // namespace infra

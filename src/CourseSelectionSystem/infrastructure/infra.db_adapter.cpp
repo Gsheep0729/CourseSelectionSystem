@@ -1,19 +1,17 @@
 /**
- * @file    src/CourseSelectionSystem/infrastructure/infra.db_adapter.cpp
- * @date    2026-01-09
- * @author  GY
- * @brief   Infrastructure Partition Implementation
- *
- * 实现了 DBAdapter 类。
- * 此文件是 C++ Modules 编译环境下的特殊产物。
- *
- * !!! 架构警告 (Architecture Warning) !!!
- * 为了规避 GCC 14/15 模块扫描器在处理包含非 ASCII (中文) 路径的 #include 时崩溃的 Bug，
- * 本文件采用了 "手动内联声明 (Manual Inline Declaration)" 策略。
- * 我们没有 #include "db_core.h"，而是将其类定义直接复制到了 Global Module Fragment 中。
- * 这样做是为了欺骗构建系统，使其无需解析外部头文件路径，从而保证编译通过。
- * 一旦编译器修复此 Bug，应恢复为标准的 #include "db_core.h"。
- */
+* @file    src/CourseSelectionSystem/infrastructure/infra.db_adapter.cpp
+* @date    2026-01-10
+* @author  GY
+* @brief   数据库适配器实现文件
+*
+* 实现 DBAdapter 类的方法。
+* 负责将应用层的数据库请求转发给底层的 lib_db_core 库。
+* 处理具体的类型转换和参数绑定。
+*
+* Change Log:
+* [v1.0] GY   2026-01-10
+* * 初始版本：实现 query 和 execute 方法。
+*/
 
 module;
 
