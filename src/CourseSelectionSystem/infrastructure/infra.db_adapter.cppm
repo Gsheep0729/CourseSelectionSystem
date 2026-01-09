@@ -16,7 +16,7 @@
  * * 重构为纯模块接口，移除全局模块片段中的 include <pqxx>，解决 GCC 路径 Bug。
  */
 
-export module infrastructure;
+export module infrastructure:db_adapter;
 
 import std;
 

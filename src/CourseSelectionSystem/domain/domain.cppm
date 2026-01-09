@@ -21,6 +21,7 @@ export module domain;
 export import :teacher;
 export import :student;
 export import :course;
+export import :timeslot;
 
 import std;
 

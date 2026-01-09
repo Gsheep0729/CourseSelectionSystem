@@ -261,10 +261,21 @@ void UserInterface::showTeacherMenu(std::string_view teacherId) {
         switch (choice) {
             case 1:
                 std::print("\n✅ 已选择功能 [1]：查看授课名单 (View Teaching Roster)\n");
+                std::print("(功能开发中...)\n");
                 break;
-            case 2:
-                std::print("\n✅ 已选择功能 [2]：录入成绩 (Assign Grade)\n");
+            case 2: {
+                std::print("\n--- 录入成绩 ---\n");
+                std::string sid, cid;
+                int score;
+                std::print("请输入学生ID: "); std::cin >> sid;
+                std::print("请输入课程ID: "); std::cin >> cid;
+                std::print("请输入分数 (0-100): "); std::cin >> score;
+
+                if (m_controller) {
+                    m_controller->updateGrade(sid, cid, score);
+                }
                 break;
+            }
             case 3:
                 std::print("\n✅ 已选择功能 [3]：修改成绩 (Modify Grade)\n");
                 break;
@@ -306,9 +317,25 @@ void UserInterface::showSecretaryMenu(std::string_view secretaryId) {
         clearInputBuffer();
 
         switch (choice) {
-            case 1:
-                std::print("\n✅ 已选择功能 [1]：创建课程 (Create Course)\n");
+            case 1: {
+                std::print("\n--- 创建新课程 ---\n");
+                std::string id, name, teacher;
+                int cap, weekday, slot;
+                double credit;
+
+                std::print("请输入课程ID: "); std::cin >> id;
+                std::print("请输入课程名称: "); std::getline(std::cin >> std::ws, name);
+                std::print("请输入容量: "); std::cin >> cap;
+                std::print("请输入学分: "); std::cin >> credit;
+                std::print("请输入教师姓名: "); std::getline(std::cin >> std::ws, teacher);
+                std::print("请输入上课星期 (1-7): "); std::cin >> weekday;
+                std::print("请输入上课节次 (1-5): "); std::cin >> slot;
+
+                if (m_controller) {
+                    m_controller->createCourse(id, name, cap, credit, teacher, weekday, slot);
+                }
                 break;
+            }
             case 2:
                 std::print("\n✅ 已选择功能 [2]：分配教师 (Assign Teacher)\n");
                 break;

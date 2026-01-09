@@ -38,12 +38,17 @@ set(DOMAIN_MODULES
     domain/dom.student.cppm
     domain/domain.cppm
     domain/dom.teacher.cppm
+    domain/dom.timeslot.cppm
 )
 
 # 数据管理层模块 (Infrastructure Layer)
 set(INFRASTRUCTURE_MODULES
     # CourseSelectionSystem/infrastructure/.cppm
     infrastructure/infra.db_adapter.cppm
+    infrastructure/infra.course_proxy.cppm
+    infrastructure/infra.student_proxy.cppm
+    infrastructure/infra.enrollment_proxy.cppm
+    infrastructure/infrastructure.cppm
 )
 
 # 模块实现文件 (Module Implementation Units)
