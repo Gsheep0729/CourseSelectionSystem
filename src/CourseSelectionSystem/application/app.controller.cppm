@@ -36,22 +36,28 @@ public:
     // 运行系统
     void run();
 
-    // 执行选课操作
+    // --- 学生功能 ---
     void performEnrollment(std::string sid, std::string cid);
-
-    // 执行退课操作
     void performDrop(std::string sid, std::string cid);
 
+    // --- 教师功能 ---
+    bool updateStudentScore(std::string sid, std::string cid, int score);
+
+    // --- 教学秘书功能 ---
+    bool addNewCourse(const Course& course, int weekday, int timeslot);
+    bool setCourseTime(std::string cid, int weekday, int timeslot);
+
 private:
-    db::DBAdapter m_db;           // 数据库适配器 (用于建表)
+    db::DBAdapter m_db;              // 数据库适配器
     db::StudentProxy m_studentProxy; // 学生数据代理
     db::CourseProxy m_courseProxy;   // 课程数据代理
+    db::EnrollmentProxy m_enrollmentProxy; // 选课/成绩代理
 };
 
 // --- Implementation ---
 
 SystemController::SystemController() 
-    : m_studentProxy(m_db), m_courseProxy(m_db) {
+    : m_studentProxy(m_db), m_courseProxy(m_db), m_enrollmentProxy(m_db) {
 }
 
 /**
@@ -141,6 +147,19 @@ void SystemController::run() {
     std::print("System Controller Ready.\n");
 }
 
+// --- 教师功能实现 ---
+bool SystemController::updateStudentScore(std::string sid, std::string cid, int score) {
+    return m_enrollmentProxy.updateScore(sid, cid, score);
+}
+
+// --- 教学秘书功能实现 ---
+bool SystemController::addNewCourse(const Course& course, int weekday, int timeslot) {
+    return m_courseProxy.addCourse(course, weekday, timeslot);
+}
+
+bool SystemController::setCourseTime(std::string cid, int weekday, int timeslot) {
+    return m_courseProxy.updateClassTime(cid, weekday, timeslot);
+}
 
 /**
 * @brief 执行选课操作
@@ -189,7 +208,7 @@ void SystemController::performEnrollment(std::string sid, std::string cid) {
 
     // 4. 持久化
     if (m_studentProxy.save(*student)) {
-        // 更新内存中的显示计数 (虽然这里是局部对象，主要用于反馈)
+        // 更新内存中的显示计数
         course->setEnrolled(course->getEnrolled() + 1);
         std::print("Success: Student {} enrolled in [Course] {} - {} ({}/{})\n", 
               sid, course->getId(), course->getName(), course->getEnrolled(), course->getCapacity());
@@ -246,6 +265,5 @@ void SystemController::performDrop(std::string sid, std::string cid) {
     }
 
     delete student;
-    // targetCourse 由 student 析构时管理 (见之前讨论，这里手动 delete)
     delete targetCourse; 
 }

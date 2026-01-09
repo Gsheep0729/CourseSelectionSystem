@@ -165,14 +165,50 @@ public:
         return m_db.execute(sql);
     }
     
-    // Stubs for CLI compatibility
-    static bool addCourse(const Course&, int, int) { return true; }
-    static bool updateClassTime(const std::string&, int, int) { return true; }
+    // 真实实现：添加课程
+    bool addCourse(const Course& c, int weekday, int timeslot) {
+        // 复用 save，但确保时间被设置
+        // 注意：Course 对象本身是 const，不能修改。
+        // 但我们在 save 里是读取 c 的字段。传入的 c 可能没有设置时间（如果构造时没传）。
+        // 这里我们可以直接构建 SQL。
+        std::string sql = std::format(
+            "INSERT INTO courses (id, name, capacity, weekday, timeslot, credit, teacher_id) VALUES ('{}', '{}', {}, {}, {}, {}, '{}')",
+            c.getId(), c.getName(), c.getCapacity(), weekday, timeslot, c.getCredit(), c.getTeacherId()
+        );
+        return m_db.execute(sql);
+    }
+
+    // 真实实现：更新上课时间
+    bool updateClassTime(const std::string& courseId, int weekday, int timeslot) {
+        std::string sql = std::format(
+            "UPDATE courses SET weekday = {}, timeslot = {} WHERE id = '{}'",
+            weekday, timeslot, courseId
+        );
+        return m_db.execute(sql);
+    }
 };
 
 class EnrollmentProxy {
+private:
+    DBAdapter& m_db;
 public:
-    static bool updateScore(const std::string&, const std::string&, int) { return true; }
+    explicit EnrollmentProxy(DBAdapter& db) : m_db(db) {}
+
+    // 真实实现：更新成绩
+    bool updateScore(const std::string& studentId, const std::string& courseId, int score) {
+        // 检查记录是否存在
+        auto check = m_db.query(std::format(
+            "SELECT 1 FROM student_courses WHERE student_id='{}' AND course_id='{}'", 
+            studentId, courseId));
+        
+        if (!check || check->empty()) return false;
+
+        std::string sql = std::format(
+            "UPDATE student_courses SET score = {} WHERE student_id = '{}' AND course_id = '{}'",
+            score, studentId, courseId
+        );
+        return m_db.execute(sql);
+    }
 };
 
 } // namespace db

@@ -270,8 +270,8 @@ void UserInterface::showTeacherMenu(std::string_view teacherId) {
                 std::cin >> score;
                 clearInputBuffer();
 
-                // 调用EnrollmentProxy录入成绩（录入和修改共用updateScore方法）
-                if (db::EnrollmentProxy::updateScore(studentId, courseId, score)) {
+                // 调用 Controller 录入成绩
+                if (m_controller && m_controller->updateStudentScore(studentId, courseId, score)) {
                     std::print("✅ 成绩录入成功！\n");
                 } else {
                     std::print("❌ 成绩录入失败！\n");
@@ -290,8 +290,8 @@ void UserInterface::showTeacherMenu(std::string_view teacherId) {
                 std::cin >> score;
                 clearInputBuffer();
 
-                // 调用EnrollmentProxy修改成绩（与录入共用同一方法）
-                if (db::EnrollmentProxy::updateScore(studentId, courseId, score)) {
+                // 调用 Controller 修改成绩
+                if (m_controller && m_controller->updateStudentScore(studentId, courseId, score)) {
                     std::print("✅ 成绩修改成功！\n");
                 } else {
                     std::print("❌ 成绩修改失败！\n");
@@ -357,8 +357,8 @@ void UserInterface::showSecretaryMenu(std::string_view secretaryId) {
 
                 // 构建Course领域对象
                 Course course(courseId, courseName, capacity);
-                // 调用CourseProxy创建课程
-                if (db::CourseProxy::addCourse(course, weekday, timeslot)) {
+                // 调用 Controller 创建课程
+                if (m_controller && m_controller->addNewCourse(course, weekday, timeslot)) {
                     std::print("✅ 课程创建成功！\n");
                 } else {
                     std::print("❌ 课程创建失败！\n");
@@ -381,8 +381,8 @@ void UserInterface::showSecretaryMenu(std::string_view secretaryId) {
                 std::cin >> timeslot;
                 clearInputBuffer();
 
-                // 调用CourseProxy修改上课时间
-                if (db::CourseProxy::updateClassTime(courseId, weekday, timeslot)) {
+                // 调用 Controller 修改上课时间
+                if (m_controller && m_controller->setCourseTime(courseId, weekday, timeslot)) {
                     std::print("✅ 上课时间设置成功！\n");
                 } else {
                     std::print("❌ 上课时间设置失败！\n");
