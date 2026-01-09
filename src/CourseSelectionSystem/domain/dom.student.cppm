@@ -19,9 +19,9 @@
 export module course_system:domain.student;
 
 import std;
-import :domain.course;
 
-// export class Course; // Already imported via :domain.course
+export class Course;
+
 
 export class Student {
 public:
@@ -37,19 +37,6 @@ public:
     // 检查学生是否匹配指定 ID
     bool hasId(std::string_view id) const;
 
-    std::string getId() const { return m_id; }
-    std::string getName() const { return m_name; }
-
-    // 仅供 Proxy 恢复数据使用，不进行冲突检查
-    void restoreEnrollment(Course* c) {
-        if (c) m_courses.push_back(c);
-    }
-    
-    // 获取已选课程列表
-    const std::vector<Course*>& getEnrolledCourses() const {
-        return m_courses;
-    }
-
     // 获取学生详细信息字符串
     std::string student_info() const;
 
@@ -64,29 +51,6 @@ private:
 Student::Student(std::string id, std::string name)
     : m_id(id), m_name(name) {}
 
-
-void Student::enrollIn(Course* c) {
-    if (!c) return;
-    // 检查是否已选
-    for (auto* enrolled : m_courses) {
-        if (enrolled->getId() == c->getId()) return;
-    }
-    
-    if (c->acceptEnrollment(this)) {
-        m_courses.push_back(c);
-    }
-}
-
-void Student::dropCourse(Course* c) {
-    if (!c) return;
-    auto it = std::find_if(m_courses.begin(), m_courses.end(), 
-        [c](Course* enrolled){ return enrolled->getId() == c->getId(); });
-        
-    if (it != m_courses.end()) {
-        c->removeEnrollment(this);
-        m_courses.erase(it);
-    }
-}
 
 /**
 * @brief 检查学生是否匹配指定 ID
