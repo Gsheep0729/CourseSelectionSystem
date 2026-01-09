@@ -16,7 +16,7 @@
 * * 实现选课与退课功能，包含容量检查与重复选课验证
 * * 添加基础测试用例与 CLI 输出
 */
-export module course_system:domain.course;
+export module domain:course;
 
 import std;
 

@@ -16,7 +16,7 @@
  * * 重构为纯模块接口，移除全局模块片段中的 include <pqxx>，解决 GCC 路径 Bug。
  */
 
-export module course_system:infrastructure;
+export module infrastructure;
 
 import std;
 
@@ -55,7 +55,7 @@ public:
 
 private:
     struct Impl; // PIMPL
-    std::unique_ptr<Impl> m_pImpl;
+    Impl* m_pImpl;
 };
 
 } // namespace db

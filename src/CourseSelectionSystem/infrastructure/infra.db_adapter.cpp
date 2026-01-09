@@ -56,9 +56,7 @@ private:
 // [Workaround End]
 // =========================================================================================
 
-module course_system; // 属于 course_system 主模块的实现单元
-import :infrastructure; // 导入 infrastructure 分区定义
-
+module infrastructure; // 属于 course_system 主模块的实现单元
 import std;
 
 namespace db {
@@ -72,12 +70,23 @@ struct DBAdapter::Impl {
 // DBAdapter 实现转发 (Forwarding)
 // -------------------------------------------------------------------------
 
-DBAdapter::DBAdapter() : m_pImpl(std::make_unique<Impl>()) {}
+DBAdapter::DBAdapter() : m_pImpl(new Impl()) {}
 
-DBAdapter::~DBAdapter() = default;
+DBAdapter::~DBAdapter() {
+    delete m_pImpl;
+}
 
-DBAdapter::DBAdapter(DBAdapter&&) noexcept = default;
-DBAdapter& DBAdapter::operator=(DBAdapter&&) noexcept = default;
+DBAdapter::DBAdapter(DBAdapter&& other) noexcept : m_pImpl(other.m_pImpl) {
+    other.m_pImpl = nullptr;
+}
+DBAdapter& DBAdapter::operator=(DBAdapter&& other) noexcept {
+    if (this != &other) {
+        delete m_pImpl;
+        m_pImpl = other.m_pImpl;
+        other.m_pImpl = nullptr;
+    }
+    return *this;
+}
 
 
 /**

@@ -17,10 +17,10 @@
 * * 实现选课与退课功能，包含容量检查与重复选课验证
 * * 添加基础测试用例与 CLI 输出
 */
-export module course_system:domain;
-//export import :domain.teacher;
-export import :domain.student;
-export import :domain.course;
+export module domain;
+export import :teacher;
+export import :student;
+export import :course;
 
 import std;
 

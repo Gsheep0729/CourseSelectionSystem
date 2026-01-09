@@ -18,10 +18,11 @@
 * * 将菜单选项映射到具体的 SystemController 业务方法
 * * 完善用户输入与后台逻辑的数据流转
 */
-export module course_system:presentation;
+export module presentation;
 
+import application;
+import domain;
 import std;
-import :app.controller;
 
 // --- 类声明 ---
 export class UserInterface {
@@ -123,10 +124,19 @@ std::string UserInterface::showLoginMenu() {
 
     while (true) {
         std::print("请输入用户ID：");
-        std::getline(std::cin, user_id);
+        std::string raw_input;
+        std::getline(std::cin, raw_input);
+
+        // 清洗输入：只保留数字和字母
+        user_id.clear();
+        for (char c : raw_input) {
+            if (std::isalnum(static_cast<unsigned char>(c))) {
+                user_id += c;
+            }
+        }
 
         if (user_id.empty()) {
-            std::print("❌ 用户ID不能为空！请重新输入。\n");
+            std::print("❌ 用户ID不能为空或包含非法字符！请重新输入。\n");
             continue;
         }
         break;

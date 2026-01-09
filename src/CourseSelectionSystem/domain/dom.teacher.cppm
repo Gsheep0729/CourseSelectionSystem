@@ -20,10 +20,10 @@
 * * 修复与 dom.course 的循环依赖编译错误
 * * 调整 import 顺序以适配整体编译流程
 */
-export module course_system:domain.teacher;
+export module domain:teacher;
 
 import std;
-import :domain.course;
+import :course;
 // 前向声明Course类，解决循环引用（教师与课程存在关联）
 export class Course;
 
