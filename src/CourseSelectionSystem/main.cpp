@@ -2,7 +2,7 @@
 * @file    src/CourseSelectionSystem/main.cpp
 * @date    2026-01-07
 * @author  Integrated
-* @brief   Integrated Course Selection System
+* @brief   选课系统主程序入口
 *
 * Change Log:
 * [v2.0] Integrated 2026-01-07

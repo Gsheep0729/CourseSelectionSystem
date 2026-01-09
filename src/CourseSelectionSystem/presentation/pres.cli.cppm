@@ -2,7 +2,7 @@
 * @file    src/CourseSelectionSystem/presentation/pres.cli.cppm
 * @date    2026-01-07
 * @author  Zhang Tao
-* @brief   Presentation layer partition (CLI Menu System)
+* @brief   表现层分区：CLI 菜单系统
 *
 * 表现层模块接口与实现，定义并实现用户交互核心类 UserInterface
 * 提供登录菜单、各角色功能菜单的完整逻辑，遵循 C++23 Modules 规范
@@ -18,57 +18,26 @@
 * * 将菜单选项映射到具体的 SystemController 业务方法
 * * 完善用户输入与后台逻辑的数据流转
 */
-export module course_system:presentation;
+export module presentation;
 
+import application;
+import domain;
 import std;
-import :app.controller;
 
 // --- 类声明 ---
 export class UserInterface {
 public:
-    /**
-     * @brief 设置系统控制器
-     * @param controller 系统控制器指针
-     */
-    void setController(SystemController* controller);
-
-    /**
-     * @brief 显示登录菜单，处理用户登录流程
-     * @return 登录成功的用户ID（非空）
-     */
-    std::string showLoginMenu();
-
-    /**
-     * @brief 显示学生主菜单（循环交互）
-     * @param studentId 登录学生的ID
-     */
-    void showStudentMenu(std::string_view studentId);
-
-    /**
-     * @brief 显示教师主菜单（循环交互）
-     * @param teacherId 登录教师的ID
-     */
-    void showTeacherMenu(std::string_view teacherId);
-
-    /**
-     * @brief 显示教学秘书主菜单（循环交互）
-     * @param secretaryId 登录教学秘书的ID
-     */
-    void showSecretaryMenu(std::string_view secretaryId);
+    void setController(SystemController* controller); // 注入系统控制器
+    std::string showLoginMenu(); // 显示登录主菜单
+    void showStudentMenu(std::string_view studentId); // 显示学生功能菜单
+    void showTeacherMenu(std::string_view teacherId); // 显示教师功能菜单
+    void showSecretaryMenu(std::string_view secretaryId); // 显示教学秘书功能菜单
 
 private:
-    SystemController* m_controller{nullptr};
+    SystemController* m_controller{nullptr}; // 关联的系统控制器指针
 
-    /**
-     * @brief 清除输入缓冲区，避免无效输入导致的交互异常
-     */
-    void clearInputBuffer() const;
-
-    /**
-     * @brief 显示角色选择菜单，返回用户选择的角色类型
-     * @return 1=学生，2=教师，3=教学秘书
-     */
-    int showRoleSelectionMenu() const;
+    void clearInputBuffer() const; // 清除输入流缓冲区
+    int showRoleSelectionMenu() const; // 显示角色选择菜单
 };
 
 // --- 实现部分 ---
@@ -123,10 +92,19 @@ std::string UserInterface::showLoginMenu() {
 
     while (true) {
         std::print("请输入用户ID：");
-        std::getline(std::cin, user_id);
+        std::string raw_input;
+        std::getline(std::cin, raw_input);
+
+        // 清洗输入：只保留数字和字母
+        user_id.clear();
+        for (char c : raw_input) {
+            if (std::isalnum(static_cast<unsigned char>(c))) {
+                user_id += c;
+            }
+        }
 
         if (user_id.empty()) {
-            std::print("❌ 用户ID不能为空！请重新输入。\n");
+            std::print("❌ 用户ID不能为空或包含非法字符！请重新输入。\n");
             continue;
         }
         break;
@@ -251,10 +229,21 @@ void UserInterface::showTeacherMenu(std::string_view teacherId) {
         switch (choice) {
             case 1:
                 std::print("\n✅ 已选择功能 [1]：查看授课名单 (View Teaching Roster)\n");
+                std::print("(功能开发中...)\n");
                 break;
-            case 2:
-                std::print("\n✅ 已选择功能 [2]：录入成绩 (Assign Grade)\n");
+            case 2: {
+                std::print("\n--- 录入成绩 ---\n");
+                std::string sid, cid;
+                int score;
+                std::print("请输入学生ID: "); std::cin >> sid;
+                std::print("请输入课程ID: "); std::cin >> cid;
+                std::print("请输入分数 (0-100): "); std::cin >> score;
+
+                if (m_controller) {
+                    m_controller->updateGrade(sid, cid, score);
+                }
                 break;
+            }
             case 3:
                 std::print("\n✅ 已选择功能 [3]：修改成绩 (Modify Grade)\n");
                 break;
@@ -296,9 +285,25 @@ void UserInterface::showSecretaryMenu(std::string_view secretaryId) {
         clearInputBuffer();
 
         switch (choice) {
-            case 1:
-                std::print("\n✅ 已选择功能 [1]：创建课程 (Create Course)\n");
+            case 1: {
+                std::print("\n--- 创建新课程 ---\n");
+                std::string id, name, teacher;
+                int cap, weekday, slot;
+                double credit;
+
+                std::print("请输入课程ID: "); std::cin >> id;
+                std::print("请输入课程名称: "); std::getline(std::cin >> std::ws, name);
+                std::print("请输入容量: "); std::cin >> cap;
+                std::print("请输入学分: "); std::cin >> credit;
+                std::print("请输入教师姓名: "); std::getline(std::cin >> std::ws, teacher);
+                std::print("请输入上课星期 (1-7): "); std::cin >> weekday;
+                std::print("请输入上课节次 (1-5): "); std::cin >> slot;
+
+                if (m_controller) {
+                    m_controller->createCourse(id, name, cap, credit, teacher, weekday, slot);
+                }
                 break;
+            }
             case 2:
                 std::print("\n✅ 已选择功能 [2]：分配教师 (Assign Teacher)\n");
                 break;

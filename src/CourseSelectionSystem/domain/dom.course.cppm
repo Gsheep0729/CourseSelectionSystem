@@ -2,9 +2,8 @@
 * @file    src/CourseSelectionSystem/domain/dom.course.cppm
 * @date    2026-01-06
 * @author  GY
-* @brief   Domain partition: Course entity
+* @brief   领域层分区：课程实体
 *
-* dom.course:领域层课程实体模块
 * 定义课程实体类，包含课程基本信息（ID、名称、容量）
 * 维护已选修该课程的学生列表，提供容量控制和选课管理功能
 *
@@ -15,10 +14,14 @@
 * * 实现应用层控制器 (SystemController) 管理选课流程
 * * 实现选课与退课功能，包含容量检查与重复选课验证
 * * 添加基础测试用例与 CLI 输出
+* [v2.0] GY   2026-01-10
+* * 增加字段：credit, teacherId, teacherName, timeslot
+* * 更新构造函数以支持完整信息
 */
-export module course_system:domain.course;
+export module domain:course;
 
 import std;
+import :timeslot;
 
 // 前向声明，解决循环引用
 export class Student;
@@ -27,8 +30,9 @@ export class Student;
 export class Course {
 public:
     // 构造函数
-    Course(std::string id, std::string name, int capacity = 60);
-
+    Course(std::string id, std::string name, int capacity, 
+           double credit, std::string teacherId, std::string teacherName, 
+           Timeslot timeslot);
 
     // 检查课程是否已满
     bool isFull() const;
@@ -39,8 +43,14 @@ public:
     // 移除学生报名信息
     void removeEnrollment(Student* s);
 
-    // 获取课程 ID
+    // Getters
     std::string getId() const { return m_id; }
+    std::string getName() const { return m_name; }
+    int getCapacity() const { return m_capacity; }
+    double getCredit() const { return m_credit; }
+    std::string getTeacherName() const { return m_teacherName; }
+    const Timeslot& getTimeslot() const { return m_timeslot; }
+    int getEnrolledCount() const { return m_students.size(); }
 
     // 检查 ID 是否匹配
     bool hasId(std::string_view id) const;
@@ -52,12 +62,24 @@ private:
     std::string m_id;                 // 课程 ID
     std::string m_name;               // 课程名称
     int m_capacity;                   // 最大容量
+    
+    // 新增字段
+    double m_credit;                  // 学分
+    std::string m_teacherId;          // 教师 ID
+    std::string m_teacherName;        // 教师姓名 (冗余存储，便于显示)
+    Timeslot m_timeslot;              // 时间槽
+
     std::vector<Student*> m_students; // 已选修该课程的学生列表
 };
 
 // --- Implementation ---
-Course::Course(std::string id, std::string name, int capacity)
-    : m_id(id), m_name(name), m_capacity(capacity) {}
+
+Course::Course(std::string id, std::string name, int capacity, 
+               double credit, std::string teacherId, std::string teacherName, 
+               Timeslot timeslot)
+    : m_id(id), m_name(name), m_capacity(capacity),
+      m_credit(credit), m_teacherId(teacherId), m_teacherName(teacherName),
+      m_timeslot(timeslot) {}
 
 
 /**
@@ -100,9 +122,10 @@ bool Course::hasId(std::string_view id) const {
 
 /**
  * @brief 获取课程详细信息字符串
- * @return 格式化后的课程信息 (ID - Name (Current/Max))
+ * @return 格式化后的课程信息
  */
 std::string Course::course_info() const {
-    return std::format("[Course] {} - {} ({}/{})",
-        m_id, m_name, m_students.size(), m_capacity);
+    return std::format("[Course] {} - {} ({:.1f}pts) by {} | {} ({}/{})",
+        m_id, m_name, m_credit, m_teacherName, m_timeslot.toString(), 
+        m_students.size(), m_capacity);
 }

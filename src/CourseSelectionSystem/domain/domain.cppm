@@ -2,10 +2,10 @@
 * @file    src/CourseSelectionSystem/domain/domain.cppm
 * @date    2026-01-06
 * @author  GY
-* @brief   Domain layer aggregator
+* @brief   领域层主模块接口
 *
-* domain:领域层聚合模块
 * 聚合学生（Student）和课程（Course）实体模块
+* 补全 Student 对 Course 的调用逻辑（选课、退课）
 * 补全 Student 对 Course 的调用逻辑（选课、退课）
 * 实现领域层核心业务逻辑
 *
@@ -17,10 +17,11 @@
 * * 实现选课与退课功能，包含容量检查与重复选课验证
 * * 添加基础测试用例与 CLI 输出
 */
-export module course_system:domain;
-//export import :domain.teacher;
-export import :domain.student;
-export import :domain.course;
+export module domain;
+export import :teacher;
+export import :student;
+export import :course;
+export import :timeslot;
 
 import std;
 
