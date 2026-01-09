@@ -2,10 +2,10 @@
 * @file    src/CourseSelectionSystem/domain/dom.teacher.cppm
 * @date    2026-01-08
 * @author  Zhang Tao
-* @brief   Domain partition: Teacher entity
+* @brief   领域层分区：教师实体
 *
-* dom.teacher:领域层教师实体模块
 * 定义教师实体类，包含教师基本信息（ID、姓名）
+* 维护教师授课课程列表，提供授课管理、成绩录入/修改等核心操作
 * 维护教师授课课程列表，提供授课管理、成绩录入/修改等核心操作
 * 严格遵循领域层纯业务对象约束，无SQL语句或数据库依赖
 *
@@ -20,10 +20,10 @@
 * * 修复与 dom.course 的循环依赖编译错误
 * * 调整 import 顺序以适配整体编译流程
 */
-export module course_system:domain.teacher;
+export module domain:teacher;
 
 import std;
-import :domain.course;
+import :course;
 // 前向声明Course类，解决循环引用（教师与课程存在关联）
 export class Course;
 
