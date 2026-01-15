@@ -48,6 +48,7 @@ set(INFRASTRUCTURE_MODULES
     infrastructure/infra.course_proxy.cppm
     infrastructure/infra.student_proxy.cppm
     infrastructure/infra.enrollment_proxy.cppm
+    infrastructure/infra.dtos.cppm
     infrastructure/infrastructure.cppm
 )
 

@@ -34,6 +34,14 @@ public:
 
 namespace infra {
 
+/**
+ * @brief 更新学生在某门课的成绩
+ * @param db 数据库适配器引用
+ * @param studentId 学生ID
+ * @param courseId 课程ID
+ * @param score 新的分数
+ * @return 操作成功返回 true，否则返回 false
+ */
 bool EnrollmentProxy::updateScore(db::DBAdapter& db, std::string_view studentId, std::string_view courseId, int score) {
     std::string sql = std::format(
         "UPDATE enrollment SET score = {} WHERE student_id = '{}' AND course_id = '{}'",
@@ -42,6 +50,14 @@ bool EnrollmentProxy::updateScore(db::DBAdapter& db, std::string_view studentId,
     return db.execute(sql);
 }
 
+
+
+/**
+ * @brief 获取某门课程的所有选课记录及成绩
+ * @param db 数据库适配器引用
+ * @param courseId 课程ID
+ * @return 包含查询结果的 Result 对象，若查询失败则返回 std::nullopt
+ */
 std::optional<db::Result> EnrollmentProxy::findGradesByCourse(db::DBAdapter& db, std::string_view courseId) {
     std::string sql = std::format(
         "SELECT student_id, score FROM enrollment WHERE course_id = '{}'",

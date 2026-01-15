@@ -82,6 +82,8 @@ Course::Course(std::string id, std::string name, int capacity,
       m_timeslot(timeslot) {}
 
 
+
+
 /**
 * @brief 检查课程是否已满
 * @return true 如果当前选课人数 >= 容量，否则 false
@@ -89,6 +91,8 @@ Course::Course(std::string id, std::string name, int capacity,
 bool Course::isFull() const {
     return m_students.size() >= m_capacity;
 }
+
+
 
 
 /**
@@ -103,6 +107,8 @@ bool Course::acceptEnrollment(Student* s) {
 }
 
 
+
+
 /**
 * @brief 移除学生报名信息
 * @param s 要移除的学生指针
@@ -110,6 +116,8 @@ bool Course::acceptEnrollment(Student* s) {
 void Course::removeEnrollment(Student* s) {
     std::erase(m_students, s);
 }
+
+
 
 /**
  * @brief 检查课程是否匹配指定 ID
@@ -119,6 +127,8 @@ void Course::removeEnrollment(Student* s) {
 bool Course::hasId(std::string_view id) const {
     return m_id == id;
 }
+
+
 
 /**
  * @brief 获取课程详细信息字符串

@@ -44,6 +44,8 @@ private:
 Timeslot::Timeslot(int weekday, int period)
     : m_weekday(weekday), m_period(period) {}
 
+
+
 /**
 * @brief 检查是否与另一个时间槽冲突
 * @param other 另一个时间槽
@@ -58,6 +60,8 @@ bool Timeslot::overlaps(const Timeslot& other) const {
     // 简单策略：星期相同且节次相同则冲突
     return (m_weekday == other.m_weekday) && (m_period == other.m_period);
 }
+
+
 
 /**
 * @brief 获取格式化的时间字符串

@@ -58,6 +58,8 @@ private:
 Student::Student(std::string id, std::string name)
     : m_id(id), m_name(name) {}
 
+
+
 /**
 * @brief 检查是否已选修
 */
@@ -68,6 +70,8 @@ bool Student::isEnrolled(const Course* targetCourse) const {
         return c->getId() == targetCourse->getId();
     });
 }
+
+
 
 /**
 * @brief 检查是否有时间冲突
@@ -85,6 +89,8 @@ bool Student::hasTimeConflict(const Course* targetCourse) const {
     return false;
 }
 
+
+
 /**
 * @brief 学生选修课程
 */
@@ -95,6 +101,8 @@ void Student::enrollIn(Course* c) {
     // Student 对象只负责维护自己的关系。
     m_courses.push_back(c);
 }
+
+
 
 /**
 * @brief 学生退选课程
@@ -107,12 +115,16 @@ void Student::dropCourse(Course* c) {
     });
 }
 
+
+
 /**
 * @brief 检查学生是否匹配指定 ID
 */
 bool Student::hasId(std::string_view id) const {
     return m_id == id;
 }
+
+
 
 /**
 * @brief 获取学生详细信息字符串

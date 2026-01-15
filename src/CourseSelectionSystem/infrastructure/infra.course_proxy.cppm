@@ -15,6 +15,9 @@
 * [v1.1] Zhang Tao   2026-01-08
 * * 修复Course类接口调用错误（补充getName/getCapacity访问方法）
 * * 修正SQL语句格式错误和变量名拼写错误
+* [v4.5] GY   2026-01-15
+* * 实现 findStudentsByCourse 方法，支持关联查询选课学生名单
+* * 将内部 StudentDTO 重命名为 CourseStudentDTO 解决命名冲突
 */
 export module infrastructure:course_proxy;
 
@@ -25,11 +28,18 @@ import std;
 
 export namespace infra { // 使用 namespace 区分
 
+struct CourseStudentDTO {
+    std::string id;
+    std::string name;
+    int score; // -1 表示未录入
+};
+
 class CourseProxy {
 public:
     static std::unique_ptr<Course> findCourseById(db::DBAdapter& db, std::string_view id); // 根据 ID 查找课程
     static std::vector<std::unique_ptr<Course>> findAllCourses(db::DBAdapter& db); // 获取所有课程列表
     static bool addCourse(db::DBAdapter& db, const Course& course); // 将新课程持久化到数据库
+    static std::vector<CourseStudentDTO> findStudentsByCourse(db::DBAdapter& db, std::string_view courseId); // 查询某课程的选课学生
 };
 
 } // namespace infra
@@ -37,6 +47,38 @@ public:
 // --- Implementation ---
 
 namespace infra {
+
+std::vector<CourseStudentDTO> CourseProxy::findStudentsByCourse(db::DBAdapter& db, std::string_view courseId) {
+    std::vector<CourseStudentDTO> students;
+    // 关联查询 enrollment 和 student 表
+    std::string sql = std::format(
+        "SELECT s.id, s.name, e.score "
+        "FROM enrollment e "
+        "JOIN student s ON e.student_id = s.id "
+        "WHERE e.course_id = '{}' "
+        "ORDER BY s.id", 
+        courseId
+    );
+    
+    auto res = db.query(sql);
+    if (res) {
+        for (const auto& row : *res) {
+            try {
+                std::string id = row[0];
+                std::string name = row[1];
+                int score = -1; // 默认未录入
+                // 检查成绩字段是否为空 (假设空字符串表示 NULL)
+                if (!row[2].empty()) {
+                    score = std::stoi(row[2]);
+                }
+                students.emplace_back(id, name, score);
+            } catch (const std::exception& e) {
+                 std::print("Error parsing student row for course {}: {}\n", courseId, e.what());
+            }
+        }
+    }
+    return students;
+}
 
 std::unique_ptr<Course> CourseProxy::findCourseById(db::DBAdapter& db, std::string_view id) {
     std::string sql = std::format(

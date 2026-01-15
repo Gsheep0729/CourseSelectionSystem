@@ -34,7 +34,11 @@
 
     [构建系统]
     - CMake: 更新配置以支持新增的 Infrastructure 分区文件。
-*
+* [v4.5] GY   2026-01-15
+* * 实现 login 方法与基于 users 表的身份验证
+* * 引入 m_currentUser 维护登录会话
+* * 在选课、退课、评分等业务逻辑中集成细粒度权限校验
+* * 新增 getMySchedule, getCourseStudentList 等查询桥接接口供 UI 调用
 */
 export module application;
 
@@ -44,9 +48,20 @@ import std;
 
 export class SystemController {
 public:
+    struct User {
+        std::string id;
+        std::string name;
+        std::string role; // "student", "teacher", "secretary"
+        bool isValid() const { return !id.empty(); }
+    };
+
     SystemController(); // 构造函数：初始化数据库适配器
     void initialize(); // 系统初始化：建立连接、创建表结构
     void run(); // 启动系统运行逻辑
+
+    // 用户认证
+    bool login(std::string id, std::string password);
+    User getCurrentUser() const { return m_currentUser; }
 
     // 核心业务功能
     void performEnrollment(std::string sid, std::string cid); // 执行选课业务逻辑
@@ -59,15 +74,44 @@ public:
     // 教师功能
     bool updateGrade(std::string sid, std::string cid, int score); // 录入/修改学生成绩
 
+    // --- 数据查询接口 (供 UI 调用) ---
+    
+    // 获取当前登录学生的课表
+    std::vector<Course> getMySchedule() {
+        if (!m_currentUser.isValid() || m_currentUser.role != "student") return {};
+        return infra::StudentProxy::findSchedule(*m_db, m_currentUser.id);
+    }
+
+    // 获取某门课程的学生名单 (仅教师/管理员可用)
+    std::vector<infra::CourseStudentDTO> getCourseStudentList(std::string courseId) {
+        // 简单权限校验
+        if (!m_currentUser.isValid()) return {};
+        if (m_currentUser.role == "student") return {}; // 学生不可见
+        return infra::CourseProxy::findStudentsByCourse(*m_db, courseId);
+    }
+
+    // 获取所有课程列表 (公共查询)
+    std::vector<std::unique_ptr<Course>> getAllCourses() {
+        return infra::CourseProxy::findAllCourses(*m_db);
+    }
+
 private:
     std::unique_ptr<db::DBAdapter> m_db; // 数据库适配器指针
+    User m_currentUser; // 当前登录用户
 };
 
 // --- Implementation ---
 
+// @brief 构造函数
+
 SystemController::SystemController() : m_db(std::make_unique<db::DBAdapter>()) {}
 
+/**
+ * @brief 系统环境初始化
+ * 建立数据库连接，执行 DDL 语句重置表结构，并导入初始的用户及课程数据。
+ */
 void SystemController::initialize() {
+    // 使用 PostgreSQL的 CourseSelectionSystem数据库，登录管理员账号为postgres，密码为123，ip地址为127.0.0.1，端口号为5432
     std::string conn_str = "dbname=CourseSelectionSystem user=postgres password=123 hostaddr=127.0.0.1 port=5432";
     if (!m_db->connect(conn_str)) {
         std::print("Error: Failed to connect to database.\n");
@@ -78,7 +122,18 @@ void SystemController::initialize() {
     m_db->execute("DROP TABLE IF EXISTS enrollment CASCADE");
     m_db->execute("DROP TABLE IF EXISTS course CASCADE");
     m_db->execute("DROP TABLE IF EXISTS student CASCADE");
+    m_db->execute("DROP TABLE IF EXISTS users CASCADE");
     
+    // 创建用户表 (用于认证)
+    m_db->execute(R"(
+        CREATE TABLE users (
+            user_id VARCHAR(50) PRIMARY KEY,
+            name VARCHAR(50) NOT NULL,
+            password VARCHAR(50) DEFAULT '123456',
+            role VARCHAR(20) CHECK (role IN ('student','teacher','secretary'))
+        )
+    )");
+
     m_db->execute(R"(
         CREATE TABLE course (
             id VARCHAR(50) PRIMARY KEY,
@@ -106,10 +161,22 @@ void SystemController::initialize() {
 
     std::print("Database initialized.\n");
 
-    // 录入初始数据
+    // --- 录入默认演示数据 ---
+    
+    // 1. 录入默认学生账户
+    // 学号: 2024051604085, 用户名: Gao Yang, 默认密码: 123
+    m_db->execute("INSERT INTO users VALUES ('2024051604085', 'Gao Yang', '123', 'student')");
     m_db->execute("INSERT INTO student (id, name) VALUES ('2024051604085', 'Gao Yang')");
 
-    // 真实课程数据导入
+    // 2. 录入默认教师账户
+    // 教师工号: 20131672, 用户名: 龚伟 , 默认密码: 123
+    m_db->execute("INSERT INTO users VALUES ('20131672', '龚伟', '123', 'teacher')");
+
+    // 3. 录入默认教学秘书账户
+    // 账号: admin, 用户名: Secretary, 默认密码: admin
+    m_db->execute("INSERT INTO users VALUES ('admin', 'Secretary', 'admin', 'secretary')");
+
+    // --- 导入真实课程数据 ---
     struct RawCourse {
         std::string id; std::string name; int cap; double cr; 
         std::string tid; std::string tname; int w; int t;
@@ -169,11 +236,57 @@ void SystemController::initialize() {
     std::print("Initial data loaded.\n");
 }
 
+/**
+ * @brief 运行主逻辑
+ */
 void SystemController::run() {
-    std::print("System Controller Ready.\n");
+    std::print("System Controller Ready. Please login via UI.\n");
 }
 
+/**
+ * @brief 处理用户登录请求
+ * @param id 用户唯一标识ID
+ * @param password 用户密码
+ * @return 登录成功返回 true，并保存用户信息至当前会话；否则返回 false
+ */
+bool SystemController::login(std::string id, std::string password) {
+    // 简单的明文密码验证 (实际生产应使用哈希)
+    std::string sql = std::format("SELECT name, role FROM users WHERE user_id = '{}' AND password = '{}'", id, password);
+    auto res = m_db->query(sql);
+
+    if (res && !res->empty()) {
+        std::string name = (*res)[0][0];
+        std::string role = (*res)[0][1];
+        m_currentUser = User{id, name, role};
+        std::print("Login successful: {} ({})\n", name, role);
+        return true;
+    }
+
+    std::print("Login failed: Invalid credentials.\n");
+    return false;
+}
+
+/**
+ * @brief 执行选课业务逻辑
+ * @param sid 学生ID
+ * @param cid 课程ID
+ * 校验流程：登录态 -> 角色权限 -> 身份匹配 -> 课程存在 -> 学生存在 -> 重复选课 -> 容量检查 -> 时间冲突检测 -> 持久化
+ */
 void SystemController::performEnrollment(std::string sid, std::string cid) {
+    // 权限检查
+    if (!m_currentUser.isValid()) {
+        std::print("Error: Please login first.\n");
+        return;
+    }
+    if (m_currentUser.role != "student") {
+        std::print("Error: Only students can enroll in courses.\n");
+        return;
+    }
+    if (m_currentUser.id != sid) {
+        std::print("Error: You can only enroll for yourself.\n");
+        return;
+    }
+
     // 1. 获取课程对象
     auto course = infra::CourseProxy::findCourseById(*m_db, cid);
     if (!course) {
@@ -192,7 +305,7 @@ void SystemController::performEnrollment(std::string sid, std::string cid) {
     
     // 3.1 检查是否已选
     if (student->isEnrolled(course.get())) {
-        std::print("Error: Already enrolled in %s\n", course->getName());
+        std::print("Error: Already enrolled in {}\n", course->getName());
         return;
     }
 
@@ -204,35 +317,72 @@ void SystemController::performEnrollment(std::string sid, std::string cid) {
 
     // 3.3 检查时间冲突
     if (student->hasTimeConflict(course.get())) {
-        std::print("Error: Time conflict detected for course %s\n", course->getName());
+        std::print("Error: Time conflict detected for course {}\n", course->getName());
         return;
     }
 
     // 4. 持久化 (通过 Proxy)
     if (infra::StudentProxy::saveEnrollment(*m_db, sid, cid)) {
-        std::print("Success: Enrolled in %s\n", course->course_info());
+        std::print("Success: Enrolled in {}\n", course->course_info());
     } else {
         std::print("Error: Database operation failed.\n");
     }
 }
 
+/**
+ * @brief 执行退课业务逻辑
+ * @param sid 学生ID
+ * @param cid 课程ID
+ * 校验流程：登录态 -> 角色权限 -> 身份匹配 -> 选课状态验证 -> 持久化
+ */
 void SystemController::performDrop(std::string sid, std::string cid) {
+    // 权限检查
+    if (!m_currentUser.isValid()) {
+        std::print("Error: Please login first.\n");
+        return;
+    }
+    if (m_currentUser.role != "student") {
+        std::print("Error: Only students can drop courses.\n");
+        return;
+    }
+    if (m_currentUser.id != sid) {
+        std::print("Error: You can only drop courses for yourself.\n");
+        return;
+    }
+
     // 1. 简单校验
     if (!infra::StudentProxy::isEnrolled(*m_db, sid, cid)) {
-        std::print("Error: Not enrolled in course %s\n", cid);
+        std::print("Error: Not enrolled in course {}\n", cid);
         return;
     }
 
     // 2. 执行退课
     if (infra::StudentProxy::removeEnrollment(*m_db, sid, cid)) {
-        std::print("Success: Dropped course {}", cid);
+        std::print("Success: Dropped course {}\n", cid);
     } else {
         std::print("Error: Database operation failed.\n");
     }
 }
 
+/**
+ * @brief 创建新课程（教学秘书专有功能）
+ * @param id 课程ID
+ * @param name 课程名称
+ * @param capacity 课程容量
+ * @param credit 学分
+ * @param teacherName 教师姓名
+ * @param weekday 星期几
+ * @param timeslot 节次
+ * @return 创建成功返回 true，权限不足或持久化失败返回 false
+ */
 bool SystemController::createCourse(std::string id, std::string name, int capacity, double credit, 
                                   std::string teacherName, int weekday, int timeslot) {
+    // 权限检查
+    if (!m_currentUser.isValid() || m_currentUser.role != "secretary") {
+        std::print("Error: Permission denied. Only secretaries can create courses.\n");
+        return false;
+    }
+
     // 1. 构建领域对象 (Value Objects & Entities)
     Timeslot ts(weekday, timeslot);
     Course newCourse(id, name, capacity, credit, "T000", teacherName, ts);
@@ -247,7 +397,23 @@ bool SystemController::createCourse(std::string id, std::string name, int capaci
     }
 }
 
+/**
+ * @brief 修改或录入成绩（教师专有功能）
+ * @param sid 学生ID
+ * @param cid 课程ID
+ * @param score 分数 (0-100)
+ * @return 操作成功返回 true
+ */
 bool SystemController::updateGrade(std::string sid, std::string cid, int score) {
+    // 权限检查
+    if (!m_currentUser.isValid() || m_currentUser.role != "teacher") {
+        std::print("Error: Permission denied. Only teachers can update grades.\n");
+        return false;
+    }
+    
+    // 注意：这里还可以增加检查，确保教师只能修改自己教授的课程成绩
+    // 但根据需求说明，我们先检查角色即可。
+
     // 1. 业务校验 (例如成绩范围)
     if (score < 0 || score > 100) {
         std::print("Error: Invalid score {}. Must be between 0 and 100.\n", score);

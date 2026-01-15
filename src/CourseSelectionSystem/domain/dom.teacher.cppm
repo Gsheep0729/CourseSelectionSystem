@@ -16,7 +16,7 @@
 * * 实现授课课程管理（添加/移除授课课程、获取授课列表）
 * * 实现成绩录入/修改逻辑（含成绩范围校验、授课课程权限校验）
 * * 实现教师信息格式化输出、ID匹配检查等辅助功能
-* [v2.0] Integrated 2026-01-07
+* [v2.0] GY 2026-01-10
 * * 修复与 dom.course 的循环依赖编译错误
 * * 调整 import 顺序以适配整体编译流程
 */
@@ -78,6 +78,8 @@ private:
 Teacher::Teacher(std::string id, std::string name)
    : m_id(id), m_name(name) {}
 
+
+
 /**
 * @brief 检查输入ID是否与教师ID一致
 * @param id 待检查的ID
@@ -87,6 +89,8 @@ bool Teacher::hasId(std::string_view id) const {
    return m_id == id;
 }
 
+
+
 /**
 * @brief 获取教师ID
 * @return 教师ID字符串
@@ -95,6 +99,8 @@ std::string Teacher::getId() const {
    return m_id;
 }
 
+
+
 /**
 * @brief 获取教师姓名
 * @return 教师姓名字符串
@@ -102,6 +108,8 @@ std::string Teacher::getId() const {
 std::string Teacher::getName() const {
    return m_name;
 }
+
+
 
 /**
 * @brief 私有辅助方法：检查课程是否为当前教师的授课课程
@@ -113,6 +121,8 @@ bool Teacher::isTeachingCourse(Course* course) const {
    // 遍历授课列表，检查课程是否存在
    return std::ranges::contains(m_teachingCourses, course);
 }
+
+
 
 /**
 * @brief 添加授课课程：避免重复添加同一课程
@@ -128,6 +138,8 @@ void Teacher::addTeachingCourse(Course* course) {
    m_teachingCourses.push_back(course);
    std::print("Success: Teacher {} added course {}.\n", m_name, course->course_info());
 }
+
+
 
 /**
 * @brief 移除授课课程：从列表中删除指定课程
@@ -145,6 +157,8 @@ void Teacher::removeTeachingCourse(Course* course) {
    }
 }
 
+
+
 /**
 * @brief 获取当前教师的所有授课课程列表
 * @return 授课课程指针向量（只读）
@@ -152,6 +166,8 @@ void Teacher::removeTeachingCourse(Course* course) {
 std::vector<Course*> Teacher::getTeachingCourses() const {
    return m_teachingCourses;
 }
+
+
 
 /**
 * @brief 录入/修改成绩：严格遵循教师权限与成绩范围约束
@@ -181,6 +197,8 @@ bool Teacher::assignGrade(Course* course, std::string_view studentId, int score)
        m_name, score, studentId, course->course_info());
    return true;
 }
+
+
 
 /**
 * @brief 获取教师详细信息：格式化输出核心信息

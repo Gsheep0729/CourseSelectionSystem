@@ -13,6 +13,7 @@ pkg_check_modules(PQXX REQUIRED libpqxx)
 # 创建静态库
 add_library(db_core STATIC
     src/db_core.cpp
+    include/db_core.h
 )
 
 # 包含头文件目录
