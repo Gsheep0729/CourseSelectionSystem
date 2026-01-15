@@ -82,7 +82,7 @@ std::vector<CourseStudentDTO> CourseProxy::findStudentsByCourse(db::DBAdapter& d
 
 std::unique_ptr<Course> CourseProxy::findCourseById(db::DBAdapter& db, std::string_view id) {
     std::string sql = std::format(
-        "SELECT name, capacity, credit, teacher_id, teacher_name, weekday, timeslot "
+        "SELECT name, capacity, enrolled, credit, teacher_id, teacher_name, weekday, timeslot "
         "FROM course WHERE id = '{}'", id);
     
     auto res = db.query(sql);
@@ -91,22 +91,23 @@ std::unique_ptr<Course> CourseProxy::findCourseById(db::DBAdapter& db, std::stri
     }
 
     const auto& row = (*res)[0];
-    // row: name, capacity, credit, tid, tname, w, t
+    // row: name, capacity, enrolled, credit, tid, tname, w, t
     std::string name = row[0];
     int cap = std::stoi(row[1]);
-    double credit = std::stod(row[2]);
-    std::string tid = row[3];
-    std::string tname = row[4];
-    int w = std::stoi(row[5]);
-    int t = std::stoi(row[6]);
+    int enrolled = std::stoi(row[2]);
+    double credit = std::stod(row[3]);
+    std::string tid = row[4];
+    std::string tname = row[5];
+    int w = std::stoi(row[6]);
+    int t = std::stoi(row[7]);
 
     return std::make_unique<Course>(
-        std::string(id), name, cap, credit, tid, tname, Timeslot(w, t)
+        std::string(id), name, cap, enrolled, credit, tid, tname, Timeslot(w, t)
     );
 }
 
 std::vector<std::unique_ptr<Course>> CourseProxy::findAllCourses(db::DBAdapter& db) {
-    std::string sql = "SELECT id, name, capacity, credit, teacher_id, teacher_name, weekday, timeslot FROM course ORDER BY id";
+    std::string sql = "SELECT id, name, capacity, enrolled, credit, teacher_id, teacher_name, weekday, timeslot FROM course ORDER BY id";
     auto res = db.query(sql);
     
     std::vector<std::unique_ptr<Course>> courses;
@@ -116,14 +117,15 @@ std::vector<std::unique_ptr<Course>> CourseProxy::findAllCourses(db::DBAdapter& 
         std::string id = row[0];
         std::string name = row[1];
         int cap = std::stoi(row[2]);
-        double credit = std::stod(row[3]);
-        std::string tid = row[4];
-        std::string tname = row[5];
-        int w = std::stoi(row[6]);
-        int t = std::stoi(row[7]);
+        int enrolled = std::stoi(row[3]);
+        double credit = std::stod(row[4]);
+        std::string tid = row[5];
+        std::string tname = row[6];
+        int w = std::stoi(row[7]);
+        int t = std::stoi(row[8]);
 
         courses.push_back(std::make_unique<Course>(
-            id, name, cap, credit, tid, tname, Timeslot(w, t)
+            id, name, cap, enrolled, credit, tid, tname, Timeslot(w, t)
         ));
     }
     return courses;
@@ -133,9 +135,9 @@ bool CourseProxy::addCourse(db::DBAdapter& db, const Course& course) {
     const auto& ts = course.getTimeslot();
     std::string sql = std::format(
         "INSERT INTO course (id, name, capacity, enrolled, credit, teacher_id, teacher_name, weekday, timeslot) "
-        "VALUES ('{}', '{}', {}, 0, {}, 'TBD', '{}', {}, {})",
+        "VALUES ('{}', '{}', {}, 0, {}, '{}', '{}', {}, {})",
         course.getId(), course.getName(), course.getCapacity(), 
-        course.getCredit(), course.getTeacherName(), ts.getWeekday(), ts.getPeriod()
+        course.getCredit(), course.getTeacherId(), course.getTeacherName(), ts.getWeekday(), ts.getPeriod()
     );
     return db.execute(sql);
 }

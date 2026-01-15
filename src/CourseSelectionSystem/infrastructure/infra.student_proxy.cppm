@@ -49,9 +49,9 @@ std::vector<Course> StudentProxy::findSchedule(db::DBAdapter& db, std::string_vi
     
     // 使用 JOIN 关联 enrollment 和 course 表
     // 注意：假设表名为 course (单数)，与文件中其他方法保持一致
-    // 假设 course 表包含: id, name, capacity, credit, teacher_id, teacher_name, weekday, timeslot
+    // 假设 course 表包含: id, name, capacity, enrolled, credit, teacher_id, teacher_name, weekday, timeslot
     std::string sql = std::format(
-        "SELECT c.id, c.name, c.capacity, c.credit, c.teacher_id, c.teacher_name, c.weekday, c.timeslot "
+        "SELECT c.id, c.name, c.capacity, c.enrolled, c.credit, c.teacher_id, c.teacher_name, c.weekday, c.timeslot "
         "FROM enrollment e "
         "JOIN course c ON e.course_id = c.id "
         "WHERE e.student_id = '{}'", 
@@ -64,18 +64,18 @@ std::vector<Course> StudentProxy::findSchedule(db::DBAdapter& db, std::string_vi
         for (const auto& row : *res) {
             try {
                 // 解析结果行
-                // row[0]: id, row[1]: name, row[2]: capacity, ...
                 std::string id = row[0];
                 std::string name = row[1];
                 int capacity = std::stoi(row[2]);
-                double credit = std::stod(row[3]);
-                std::string tid = row[4];
-                std::string tname = row[5];
-                int weekday = std::stoi(row[6]);
-                int period = std::stoi(row[7]);
+                int enrolled = std::stoi(row[3]);
+                double credit = std::stod(row[4]);
+                std::string tid = row[5];
+                std::string tname = row[6];
+                int weekday = std::stoi(row[7]);
+                int period = std::stoi(row[8]);
                 
                 // 构造 Course 对象并添加到列表
-                schedule.emplace_back(id, name, capacity, credit, tid, tname, Timeslot(weekday, period));
+                schedule.emplace_back(id, name, capacity, enrolled, credit, tid, tname, Timeslot(weekday, period));
             } catch (const std::exception& e) {
                 std::print("Error parsing schedule row for student {}: {}\n", studentId, e.what());
                 // 忽略错误行，继续处理

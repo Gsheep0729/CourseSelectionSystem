@@ -34,11 +34,12 @@
 
     [构建系统]
     - CMake: 更新配置以支持新增的 Infrastructure 分区文件。
-* [v4.5] GY   2026-01-15
+* [v4.5] GY   2026-01-16
 * * 实现 login 方法与基于 users 表的身份验证
 * * 引入 m_currentUser 维护登录会话
 * * 在选课、退课、评分等业务逻辑中集成细粒度权限校验
 * * 新增 getMySchedule, getCourseStudentList 等查询桥接接口供 UI 调用
+* * [Fix] 修复 createCourse 自动创建教师账户逻辑
 */
 export module application;
 
@@ -66,16 +67,16 @@ public:
     // 核心业务功能
     void performEnrollment(std::string sid, std::string cid); // 执行选课业务逻辑
     void performDrop(std::string sid, std::string cid); // 执行退课业务逻辑
-    
+
     // 教学秘书功能
-    bool createCourse(std::string id, std::string name, int capacity, double credit, 
-                      std::string teacherName, int weekday, int timeslot); // 创建新课程
-    
+    bool createCourse(std::string id, std::string name, int capacity, double credit,
+                      std::string teacherId, std::string teacherName, int weekday, int timeslot); // 创建新课程
+
     // 教师功能
     bool updateGrade(std::string sid, std::string cid, int score); // 录入/修改学生成绩
 
     // --- 数据查询接口 (供 UI 调用) ---
-    
+
     // 获取当前登录学生的课表
     std::vector<Course> getMySchedule() {
         if (!m_currentUser.isValid() || m_currentUser.role != "student") return {};
@@ -123,13 +124,13 @@ void SystemController::initialize() {
     m_db->execute("DROP TABLE IF EXISTS course CASCADE");
     m_db->execute("DROP TABLE IF EXISTS student CASCADE");
     m_db->execute("DROP TABLE IF EXISTS users CASCADE");
-    
+
     // 创建用户表 (用于认证)
     m_db->execute(R"(
         CREATE TABLE users (
             user_id VARCHAR(50) PRIMARY KEY,
             name VARCHAR(50) NOT NULL,
-            password VARCHAR(50) DEFAULT '123456',
+            password VARCHAR(50) DEFAULT '123',
             role VARCHAR(20) CHECK (role IN ('student','teacher','secretary'))
         )
     )");
@@ -149,7 +150,7 @@ void SystemController::initialize() {
     )");
 
     m_db->execute("CREATE TABLE student (id VARCHAR(50) PRIMARY KEY, name TEXT)");
-    
+
     m_db->execute(R"(
         CREATE TABLE enrollment (
             student_id VARCHAR(50) REFERENCES student(id),
@@ -162,7 +163,7 @@ void SystemController::initialize() {
     std::print("Database initialized.\n");
 
     // --- 录入默认演示数据 ---
-    
+
     // 1. 录入默认学生账户
     // 学号: 2024051604085, 用户名: Gao Yang, 默认密码: 123
     m_db->execute("INSERT INTO users VALUES ('2024051604085', 'Gao Yang', '123', 'student')");
@@ -173,15 +174,16 @@ void SystemController::initialize() {
     m_db->execute("INSERT INTO users VALUES ('20131672', '龚伟', '123', 'teacher')");
 
     // 3. 录入默认教学秘书账户
-    // 账号: admin, 用户名: Secretary, 默认密码: admin
-    m_db->execute("INSERT INTO users VALUES ('admin', 'Secretary', 'admin', 'secretary')");
+    // 账号: admin, 用户名: Secretary, 默认密码: 123
+    m_db->execute("INSERT INTO users VALUES ('admin', 'Secretary', '123', 'secretary')");
 
     // --- 导入真实课程数据 ---
     struct RawCourse {
-        std::string id; std::string name; int cap; double cr; 
+        std::string id; std::string name; int cap; double cr;
         std::string tid; std::string tname; int w; int t;
     };
     std::vector<RawCourse> courses = {
+        /*
         {"0000002564", "国家安全教育（网络视频课）", 120, 1, "00000000", "网络教师", 0, 0},
         {"0000006001", "军事理论（网络视频课）", 120, 2, "22000708", "张国清", 0, 0},
         {"0000002209", "习近平总书记关于教育的重要论述专题（网络视频课）", 120, 1, "20131591", "毛宇", 0, 0},
@@ -215,6 +217,7 @@ void SystemController::initialize() {
         {"073BAR0034", "概率论与数理统计", 120, 4, "20131918", "吕美英", 1, 2},
         {"04A", "体育Ⅲ（羽毛球）", 120, 1, "20132168", "陈丽", 2, 4},
         {"003AA60026", "大学英语IV拓展课系列- AI辅助专门用途英语翻译", 120, 3, "20130442", "龙涛", 4, 5},
+        */
         {"083BA70007", "操作系统原理与实践", 120, 3.5, "20132108", "杜兴", 1, 2},
         {"083BA80006", "大学物理", 120, 4, "20250043", "孙川", 3, 5},
         {"083CA40010", "软件工程导论", 120, 2, "20130951", "魏延", 2, 1},
@@ -232,6 +235,12 @@ void SystemController::initialize() {
             c.id, c.name, c.cap, c.cr, c.tid, c.tname, c.w, c.t
         );
         m_db->execute(sql);
+
+        // 自动为课程教师创建账号 (如果不存在)，密码统一为 123
+        m_db->execute(std::format(
+            "INSERT INTO users (user_id, name, password, role) VALUES ('{}', '{}', '123', 'teacher') ON CONFLICT (user_id) DO NOTHING",
+            c.tid, c.tname
+        ));
     }
     std::print("Initial data loaded.\n");
 }
@@ -302,7 +311,7 @@ void SystemController::performEnrollment(std::string sid, std::string cid) {
     }
 
     // 3. 执行业务规则校验
-    
+
     // 3.1 检查是否已选
     if (student->isEnrolled(course.get())) {
         std::print("Error: Already enrolled in {}\n", course->getName());
@@ -323,7 +332,9 @@ void SystemController::performEnrollment(std::string sid, std::string cid) {
 
     // 4. 持久化 (通过 Proxy)
     if (infra::StudentProxy::saveEnrollment(*m_db, sid, cid)) {
-        std::print("Success: Enrolled in {}\n", course->course_info());
+        // 重要：重新加载以显示更新后的人数
+        auto updatedCourse = infra::CourseProxy::findCourseById(*m_db, cid);
+        std::print("Success: Enrolled in {}\n", updatedCourse->course_info());
     } else {
         std::print("Error: Database operation failed.\n");
     }
@@ -370,13 +381,14 @@ void SystemController::performDrop(std::string sid, std::string cid) {
  * @param name 课程名称
  * @param capacity 课程容量
  * @param credit 学分
+ * @param teacherId 教师工号
  * @param teacherName 教师姓名
  * @param weekday 星期几
  * @param timeslot 节次
  * @return 创建成功返回 true，权限不足或持久化失败返回 false
  */
-bool SystemController::createCourse(std::string id, std::string name, int capacity, double credit, 
-                                  std::string teacherName, int weekday, int timeslot) {
+bool SystemController::createCourse(std::string id, std::string name, int capacity, double credit,
+                                  std::string teacherId, std::string teacherName, int weekday, int timeslot) {
     // 权限检查
     if (!m_currentUser.isValid() || m_currentUser.role != "secretary") {
         std::print("Error: Permission denied. Only secretaries can create courses.\n");
@@ -385,10 +397,17 @@ bool SystemController::createCourse(std::string id, std::string name, int capaci
 
     // 1. 构建领域对象 (Value Objects & Entities)
     Timeslot ts(weekday, timeslot);
-    Course newCourse(id, name, capacity, credit, "T000", teacherName, ts);
+    Course newCourse(id, name, capacity, 0, credit, teacherId, teacherName, ts);
 
     // 2. 调用 Proxy 持久化
     if (infra::CourseProxy::addCourse(*m_db, newCourse)) {
+        // 自动为该教师创建登录账号 (如果不存在)
+        std::string sql = std::format(
+            "INSERT INTO users (user_id, name, password, role) VALUES ('{}', '{}', '123', 'teacher') ON CONFLICT (user_id) DO NOTHING",
+            teacherId, teacherName
+        );
+        m_db->execute(sql);
+        
         std::print("Success: Course '{}' created successfully.\n", name);
         return true;
     } else {
@@ -410,9 +429,19 @@ bool SystemController::updateGrade(std::string sid, std::string cid, int score) 
         std::print("Error: Permission denied. Only teachers can update grades.\n");
         return false;
     }
-    
-    // 注意：这里还可以增加检查，确保教师只能修改自己教授的课程成绩
-    // 但根据需求说明，我们先检查角色即可。
+
+    // 校验所有权：检查课程是否由该教师授课
+    auto course = infra::CourseProxy::findCourseById(*m_db, cid);
+    if (!course) {
+        std::print("Error: Course {} not found.\n", cid);
+        return false;
+    }
+
+    if (course->getTeacherId() != m_currentUser.id) {
+        std::print("Error: You ({}) are not authorized to grade course {} (taught by {}).\n", 
+                   m_currentUser.name, course->getName(), course->getTeacherName());
+        return false;
+    }
 
     // 1. 业务校验 (例如成绩范围)
     if (score < 0 || score > 100) {

@@ -17,6 +17,12 @@
 * * 实现 Controller 依赖注入 (setController)
 * * 将菜单选项映射到具体的 SystemController 业务方法
 * * 完善用户输入与后台逻辑的数据流转
+* [v4.5] GY   2026-01-16                                                                                                                               │
+* * 实现 login 方法与基于 users 表的身份验证                                                                                                           │
+* * 引入 m_currentUser 维护登录会话                                                                                                                    │
+* * 在选课、退课、评分等业务逻辑中集成细粒度权限校验                                                                                                   │
+* * 新增 getMySchedule, getCourseStudentList 等查询桥接接口供 UI 调用                                                                                  │
+* * [Fix] 统一默认密码为 '123'，修复 createCourse 自动创建教师账户逻辑
 */
 export module presentation;
 
@@ -84,48 +90,51 @@ int UserInterface::showRoleSelectionMenu() const {
 */
 std::string UserInterface::showLoginMenu() {
     std::string user_id;
+    std::string password;
 
     std::print("\n\n\n");
     std::print("===============================================\n");
-    std::print("========== 重庆师范大学选课系统 v1.0 ==========\n");
+    std::print("========== 重庆师范大学选课系统 v4.5 ==========\n");
     std::print("===============================================\n");
 
     while (true) {
-        std::print("请输入用户ID：");
+        std::print("请输入用户ID（输入 'quit' 退出）：");
         std::string raw_input;
-        std::getline(std::cin, raw_input);
+        std::getline(std::cin >> std::ws, raw_input); // ws skip leading whitespace
 
-        // 清洗输入：只保留数字和字母
-        user_id.clear();
-        for (char c : raw_input) {
-            if (std::isalnum(static_cast<unsigned char>(c))) {
-                user_id += c;
-            }
+        if (std::cin.fail()) {
+            std::print("检测到输入流结束，系统退出。\n");
+            std::exit(0);
         }
 
-        if (user_id.empty()) {
-            std::print("❌ 用户ID不能为空或包含非法字符！请重新输入。\n");
-            continue;
+        user_id = raw_input;
+        if (user_id == "quit") {
+             std::print("✅ 用户选择退出系统。再见！\n");
+             std::exit(0);
         }
-        break;
+        
+        std::print("请输入密码：");
+        std::cin >> password;
+        clearInputBuffer();
+
+        if (m_controller && m_controller->login(user_id, password)) {
+            break; 
+        } else {
+            std::print("❌ 登录失败！请检查账号或密码。\n");
+        }
     }
 
-    std::print("✅ 登录验证通过！\n");
-
-    int role = showRoleSelectionMenu();
-    switch (role) {
-        case 1:
-            showStudentMenu(user_id);
-            break;
-        case 2:
-            showTeacherMenu(user_id);
-            break;
-        case 3:
-            showSecretaryMenu(user_id);
-            break;
-        default:
-            std::print("❌ 角色选择异常，返回登录界面。\n");
-            break;
+    auto user = m_controller->getCurrentUser();
+    std::string role = user.role;
+    
+    if (role == "student") {
+        showStudentMenu(user_id);
+    } else if (role == "teacher") {
+        showTeacherMenu(user_id);
+    } else if (role == "secretary") {
+        showSecretaryMenu(user_id);
+    } else {
+        std::print("❌ 未知角色类型，无法进入菜单。\n");
     }
 
     return user_id;
@@ -153,9 +162,7 @@ void UserInterface::showStudentMenu(std::string_view studentId) {
         if (std::cin.fail() || choice < 1 || choice > 5) {
             clearInputBuffer();
             std::print("❌ 无效输入！请输入1-5之间的数字。\n");
-            std::print("按Enter键继续...");
-            std::cin.get();
-            continue;
+            continue; // Removed pause for automation friendliness
         }
         clearInputBuffer();
 
@@ -165,37 +172,37 @@ void UserInterface::showStudentMenu(std::string_view studentId) {
                 std::print("\n--- 选课 ---\n");
                 std::print("请输入课程ID：");
                 std::getline(std::cin, courseId);
-                if (m_controller) {
-                    m_controller->performEnrollment(std::string(studentId), courseId);
-                } else {
-                    std::print("Error: System Controller not initialized.\n");
-                }
+                m_controller->performEnrollment(std::string(studentId), courseId);
                 break;
             case 2:
                 std::print("\n--- 退课 ---\n");
                 std::print("请输入课程ID：");
                 std::getline(std::cin, courseId);
-                if (m_controller) {
-                    m_controller->performDrop(std::string(studentId), courseId);
-                } else {
-                    std::print("Error: System Controller not initialized.\n");
-                }
+                m_controller->performDrop(std::string(studentId), courseId);
                 break;
             case 3:
-                std::print("\n✅ 已选择功能 [3]：查看课表 (View Schedule)\n");
-                std::print("(功能开发中...)\n");
+                std::print("\n--- 我的课表 ---\n");
+                {
+                    auto schedule = m_controller->getMySchedule();
+                    if (schedule.empty()) {
+                        std::print("暂无选课记录。\n");
+                    } else {
+                        for (const auto& c : schedule) {
+                            std::print("{}\n", c.course_info());
+                        }
+                    }
+                }
                 break;
             case 4:
                 std::print("\n✅ 已选择功能 [4]：查看成绩 (View Grades)\n");
+                // TODO: Implement getMyGrades in Controller
                 std::print("(功能开发中...)\n");
                 break;
             case 5:
                 std::print("\n✅ 退出登录成功！返回登录界面。\n");
                 return;
         }
-
-        std::print("按Enter键继续...");
-        std::cin.get();
+        // Removed "Press Enter to continue" to make test_inputs.txt execution smoother
     }
 }
 
@@ -251,9 +258,6 @@ void UserInterface::showTeacherMenu(std::string_view teacherId) {
                 std::print("\n✅ 退出登录成功！返回登录界面。\n");
                 return;
         }
-
-        std::print("按Enter键继续...");
-        std::cin.get();
     }
 }
 
@@ -287,7 +291,7 @@ void UserInterface::showSecretaryMenu(std::string_view secretaryId) {
         switch (choice) {
             case 1: {
                 std::print("\n--- 创建新课程 ---\n");
-                std::string id, name, teacher;
+                std::string id, name, teacherId, teacherName;
                 int cap, weekday, slot;
                 double credit;
 
@@ -295,12 +299,13 @@ void UserInterface::showSecretaryMenu(std::string_view secretaryId) {
                 std::print("请输入课程名称: "); std::getline(std::cin >> std::ws, name);
                 std::print("请输入容量: "); std::cin >> cap;
                 std::print("请输入学分: "); std::cin >> credit;
-                std::print("请输入教师姓名: "); std::getline(std::cin >> std::ws, teacher);
+                std::print("请输入教师工号: "); std::cin >> teacherId;
+                std::print("请输入教师姓名: "); std::getline(std::cin >> std::ws, teacherName);
                 std::print("请输入上课星期 (1-7): "); std::cin >> weekday;
                 std::print("请输入上课节次 (1-5): "); std::cin >> slot;
 
                 if (m_controller) {
-                    m_controller->createCourse(id, name, cap, credit, teacher, weekday, slot);
+                    m_controller->createCourse(id, name, cap, credit, teacherId, teacherName, weekday, slot);
                 }
                 break;
             }
@@ -310,12 +315,10 @@ void UserInterface::showSecretaryMenu(std::string_view secretaryId) {
             case 3:
                 std::print("\n✅ 已选择功能 [3]：设置上课时间 (Set Class Time)\n");
                 break;
-            case 4:
-                std::print("\n✅ 退出登录成功！返回登录界面。\n");
-                return;
-        }
-
-        std::print("按Enter键继续...");
-        std::cin.get();
-    }
-}
+                        case 4:
+                            std::print("\n✅ 退出登录成功！返回登录界面。\n");
+                            return;
+                    }
+                }
+            }
+            
