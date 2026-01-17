@@ -40,11 +40,16 @@
 * * 新增 getMyGrades 接口，支持学生查询个人成绩
 * [v5.0.2] Zhang Tao 2026-01-17
 * * 新增 assignTeacherToCourse 接口，支持教学秘书为课程分配教师
+* [v5.1] Integrated 2026-01-18
+* * 新增 setCourseTimeSlot 接口，支持教学秘书修改课程时间槽
+* * 新增 getCourseById 接口，封装数据库访问，避免外部直接访问私有成员 m_db
+* * 补充 updateGrade 接口实现，支持教师录入/修改成绩
 */
 export module application;
 import domain;
 import infrastructure;
 import std;
+
 export class SystemController {
 public:
     struct User {
@@ -53,32 +58,41 @@ public:
         std::string role; // "student", "teacher", "secretary"
         bool isValid() const { return !id.empty(); }
     };
+
     SystemController(); // 构造函数：初始化数据库适配器
     void initialize(); // 系统初始化：建立连接、创建表结构
     void run(); // 启动系统运行逻辑
+
     // 用户认证
     bool login(std::string id, std::string password);
     User getCurrentUser() const { return m_currentUser; }
+
     // 核心业务功能
     void performEnrollment(std::string sid, std::string cid); // 执行选课业务逻辑
     void performDrop(std::string sid, std::string cid); // 执行退课业务逻辑
+
     // 教学秘书功能
     bool createCourse(std::string id, std::string name, int capacity, double credit,
                       std::string teacherId, std::string teacherName, int weekday, int timeslot); // 创建新课程
     bool assignTeacherToCourse(std::string courseId, std::string teacherId, std::string teacherName); // 为课程分配教师
+    bool setCourseTimeSlot(std::string courseId, int weekday, int timeslot); // 新增：修改课程时间槽
+
     // 教师功能
     bool updateGrade(std::string sid, std::string cid, int score); // 录入/修改学生成绩
+
     // --- 数据查询接口 (供 UI 调用) ---
     // 获取当前登录学生的课表
     std::vector<Course> getMySchedule() {
         if (!m_currentUser.isValid() || m_currentUser.role != "student") return {};
         return infra::StudentProxy::findSchedule(*m_db, m_currentUser.id);
     }
+
     // 获取当前登录学生的成绩
     std::vector<infra::GradeDTO> getMyGrades() {
         if (!m_currentUser.isValid() || m_currentUser.role != "student") return {};
         return infra::EnrollmentProxy::findGradesByStudent(*m_db, m_currentUser.id);
     }
+
     // 获取某门课程的学生名单 (仅教师/管理员可用)
     std::vector<infra::CourseStudentDTO> getCourseStudentList(std::string courseId) {
         // 简单权限校验
@@ -86,17 +100,27 @@ public:
         if (m_currentUser.role == "student") return {}; // 学生不可见
         return infra::CourseProxy::findStudentsByCourse(*m_db, courseId);
     }
+
     // 获取所有课程列表 (公共查询)
     std::vector<std::unique_ptr<Course>> getAllCourses() {
         return infra::CourseProxy::findAllCourses(*m_db);
     }
+
+    // 新增：根据课程ID获取课程对象 (封装数据库访问，避免外部访问m_db)
+    std::unique_ptr<Course> getCourseById(std::string courseId) {
+        if (!m_currentUser.isValid()) return nullptr;
+        return infra::CourseProxy::findCourseById(*m_db, courseId);
+    }
+
 private:
     std::unique_ptr<db::DBAdapter> m_db; // 数据库适配器指针
     User m_currentUser; // 当前登录用户
 };
+
 // --- Implementation ---
 // @brief 构造函数
 SystemController::SystemController() : m_db(std::make_unique<db::DBAdapter>()) {}
+
 /**
  * @brief 系统环境初始化
  * 建立数据库连接，执行 DDL 语句重置表结构，并导入初始的用户及课程数据。
@@ -108,11 +132,13 @@ void SystemController::initialize() {
         std::print("Error: Failed to connect to database.\n");
         return;
     }
+
     // DDL: 重置数据库结构
     m_db->execute("DROP TABLE IF EXISTS enrollment CASCADE");
     m_db->execute("DROP TABLE IF EXISTS course CASCADE");
     m_db->execute("DROP TABLE IF EXISTS student CASCADE");
     m_db->execute("DROP TABLE IF EXISTS users CASCADE");
+
     // 创建用户表 (用于认证)
     m_db->execute(R"(
         CREATE TABLE users (
@@ -122,6 +148,7 @@ void SystemController::initialize() {
             role VARCHAR(20) CHECK (role IN ('student','teacher','secretary'))
         )
     )");
+
     m_db->execute(R"(
         CREATE TABLE course (
             id VARCHAR(50) PRIMARY KEY,
@@ -135,7 +162,9 @@ void SystemController::initialize() {
             timeslot INT
         )
     )");
+
     m_db->execute("CREATE TABLE student (id VARCHAR(50) PRIMARY KEY, name TEXT)");
+
     m_db->execute(R"(
         CREATE TABLE enrollment (
             student_id VARCHAR(50) REFERENCES student(id),
@@ -144,18 +173,23 @@ void SystemController::initialize() {
             PRIMARY KEY (student_id, course_id)
         )
     )");
+
     std::print("Database initialized.\n");
+
     // --- 录入默认演示数据 ---
     // 1. 录入默认学生账户
     // 学号: 2024051604085, 用户名: Gao Yang, 默认密码: 123
     m_db->execute("INSERT INTO users VALUES ('2024051604085', 'Gao Yang', '123', 'student')");
     m_db->execute("INSERT INTO student (id, name) VALUES ('2024051604085', 'Gao Yang')");
+
     // 2. 录入默认教师账户
     // 教师工号: 20131672, 用户名: 龚伟 , 默认密码: 123
     m_db->execute("INSERT INTO users VALUES ('20131672', '龚伟', '123', 'teacher')");
+
     // 3. 录入默认教学秘书账户
     // 账号: admin, 用户名: Secretary, 默认密码: 123
     m_db->execute("INSERT INTO users VALUES ('admin', 'Secretary', '123', 'secretary')");
+
     // --- 导入真实课程数据 ---
     struct RawCourse {
         std::string id; std::string name; int cap; double cr;
@@ -172,26 +206,31 @@ void SystemController::initialize() {
         {"003EAC002B", "毛泽东思想和中国特色社会主义理论体系概论", 120, 2.5, "20150015", "沈乾飞", 3, 4},
         {"04B", "体育Ⅳ（羽毛球）", 120, 1, "20132168", "陈丽", 2, 4}
     };
+
     for (const auto& c : courses) {
         std::string sql = std::format(
             "INSERT INTO course VALUES ('{}', '{}', {}, 0, {}, '{}', '{}', {}, {})",
             c.id, c.name, c.cap, c.cr, c.tid, c.tname, c.w, c.t
         );
         m_db->execute(sql);
+
         // 自动为课程教师创建账号 (如果不存在)，密码统一为 123
         m_db->execute(std::format(
             "INSERT INTO users (user_id, name, password, role) VALUES ('{}', '{}', '123', 'teacher') ON CONFLICT (user_id) DO NOTHING",
             c.tid, c.tname
         ));
     }
+
     std::print("Initial data loaded.\n");
 }
+
 /**
  * @brief 运行主逻辑
  */
 void SystemController::run() {
     std::print("System Controller Ready. Please login via UI.\n");
 }
+
 /**
  * @brief 处理用户登录请求
  * @param id 用户唯一标识ID
@@ -202,6 +241,7 @@ bool SystemController::login(std::string id, std::string password) {
     // 简单的明文密码验证 (实际生产应使用哈希)
     std::string sql = std::format("SELECT name, role FROM users WHERE user_id = '{}' AND password = '{}'", id, password);
     auto res = m_db->query(sql);
+
     if (res && !res->empty()) {
         std::string name = (*res)[0][0];
         std::string role = (*res)[0][1];
@@ -209,9 +249,11 @@ bool SystemController::login(std::string id, std::string password) {
         std::print("Login successful: {} ({})\n", name, role);
         return true;
     }
+
     std::print("Login failed: Invalid credentials.\n");
     return false;
 }
+
 /**
  * @brief 执行选课业务逻辑
  * @param sid 学生ID
@@ -224,56 +266,65 @@ void SystemController::performEnrollment(std::string sid, std::string cid) {
         std::print("Error: Please login first.\n");
         return;
     }
+
     if (m_currentUser.role != "student") {
         std::print("Error: Only students can enroll in courses.\n");
         return;
     }
+
     if (m_currentUser.id != sid) {
         std::print("Error: You can only enroll for yourself.\n");
         return;
     }
+
     // 1. 获取课程对象
     auto course = infra::CourseProxy::findCourseById(*m_db, cid);
     if (!course) {
         std::print("Error: Course {} not found.\n", cid);
         return;
     }
+
     // 2. 获取学生对象 (含已选课程)
     auto student = infra::StudentProxy::findStudentById(*m_db, sid);
     if (!student) {
         std::print("Error: Student {} not found.\n", sid);
         return;
     }
+
     // 3. 执行业务规则校验
     // 3.1 检查是否已选
     if (student->isEnrolled(course.get())) {
         std::print("Error: Already enrolled in {}\n", course->getName());
         return;
     }
+
     // 3.2 检查容量
     if (course->isFull()) {
         std::print("Error: Course {} is full.\n", course->getName());
         return;
     }
+
     // 3.3 检查时间冲突
     if (student->hasTimeConflict(course.get())) {
         std::print("Error: Time conflict detected for course {}\n", course->getName());
         return;
     }
+
     // 4. 持久化 (通过 Proxy)
     if (infra::StudentProxy::saveEnrollment(*m_db, sid, cid)) {
         // 重要：重新加载以显示更新后的人数
         auto updatedCourse = infra::CourseProxy::findCourseById(*m_db, cid);
-        std::print("Success: Enrolled in {}\n", updatedCourse->course_info());
+        std::print("Enrollment successful! Course {} now has {} students.\n",
+                   updatedCourse->getName(), updatedCourse->getEnrolledCount());
     } else {
-        std::print("Error: Database operation failed.\n");
+        std::print("Error: Failed to save enrollment to database.\n");
     }
 }
+
 /**
  * @brief 执行退课业务逻辑
  * @param sid 学生ID
  * @param cid 课程ID
- * 校验流程：登录态 -> 角色权限 -> 身份匹配 -> 选课状态验证 -> 持久化
  */
 void SystemController::performDrop(std::string sid, std::string cid) {
     // 权限检查
@@ -281,132 +332,222 @@ void SystemController::performDrop(std::string sid, std::string cid) {
         std::print("Error: Please login first.\n");
         return;
     }
+
     if (m_currentUser.role != "student") {
         std::print("Error: Only students can drop courses.\n");
         return;
     }
+
     if (m_currentUser.id != sid) {
         std::print("Error: You can only drop courses for yourself.\n");
         return;
     }
-    // 1. 简单校验
+
+    // 1. 检查选课关系是否存在
     if (!infra::StudentProxy::isEnrolled(*m_db, sid, cid)) {
-        std::print("Error: Not enrolled in course {}\n", cid);
+        std::print("Error: Student {} is not enrolled in course {}\n", sid, cid);
         return;
     }
-    // 2. 执行退课
+
+    // 2. 执行退课持久化
     if (infra::StudentProxy::removeEnrollment(*m_db, sid, cid)) {
-        std::print("Success: Dropped course {}\n", cid);
+        // 重新加载课程以显示更新后的人数
+        auto updatedCourse = infra::CourseProxy::findCourseById(*m_db, cid);
+        std::print("Drop successful! Course {} now has {} students.\n",
+                   updatedCourse->getName(), updatedCourse->getEnrolledCount());
     } else {
-        std::print("Error: Database operation failed.\n");
+        std::print("Error: Failed to drop course from database.\n");
     }
 }
+
 /**
- * @brief 创建新课程（教学秘书专有功能）
+ * @brief 创建新课程 (仅教学秘书可用)
  * @param id 课程ID
  * @param name 课程名称
  * @param capacity 课程容量
- * @param credit 学分
- * @param teacherId 教师工号
- * @param teacherName 教师姓名
- * @param weekday 星期几
- * @param timeslot 节次
- * @return 创建成功返回 true，权限不足或持久化失败返回 false
+ * @param credit 课程学分
+ * @param teacherId 授课教师ID
+ * @param teacherName 授课教师姓名
+ * @param weekday 上课星期 (1-7, 0=无固定时间)
+ * @param timeslot 上课节次
+ * @return 创建成功返回true，否则返回false
  */
 bool SystemController::createCourse(std::string id, std::string name, int capacity, double credit,
-                                  std::string teacherId, std::string teacherName, int weekday, int timeslot) {
+                                    std::string teacherId, std::string teacherName, int weekday, int timeslot) {
     // 权限检查
     if (!m_currentUser.isValid() || m_currentUser.role != "secretary") {
-        std::print("Error: Permission denied. Only secretaries can create courses.\n");
+        std::print("Error: Only secretary can create courses.\n");
         return false;
     }
-    // 1. 构建领域对象 (Value Objects & Entities)
-    Timeslot ts(weekday, timeslot);
-    Course newCourse(id, name, capacity, 0, credit, teacherId, teacherName, ts);
-    // 2. 调用 Proxy 持久化
-    if (infra::CourseProxy::addCourse(*m_db, newCourse)) {
-        // 自动为该教师创建登录账号 (如果不存在)
-        std::string sql = std::format(
+
+    // 检查课程ID是否已存在
+    auto existingCourse = infra::CourseProxy::findCourseById(*m_db, id);
+    if (existingCourse) {
+        std::print("Error: Course ID {} already exists.\n", id);
+        return false;
+    }
+
+    // 执行创建
+    std::string sql = std::format(
+        "INSERT INTO course VALUES ('{}', '{}', {}, 0, {}, '{}', '{}', {}, {})",
+        id, name, capacity, credit, teacherId, teacherName, weekday, timeslot
+    );
+
+    if (m_db->execute(sql)) {
+        // 自动为教师创建账号 (如果不存在)
+        m_db->execute(std::format(
             "INSERT INTO users (user_id, name, password, role) VALUES ('{}', '{}', '123', 'teacher') ON CONFLICT (user_id) DO NOTHING",
             teacherId, teacherName
-        );
-        m_db->execute(sql);
-        std::print("Success: Course '{}' created successfully.\n", name);
+        ));
+
+        std::print("Course {} created successfully!\n", name);
         return true;
     } else {
-        std::print("Error: Failed to create course in database.\n");
+        std::print("Error: Failed to create course {}\n", name);
         return false;
     }
 }
+
 /**
- * @brief 为课程分配教师（教学秘书专有功能）
+ * @brief 为课程分配教师 (仅教学秘书可用)
  * @param courseId 课程ID
  * @param teacherId 教师ID
  * @param teacherName 教师姓名
- * @return 分配成功返回 true，权限不足、课程不存在或数据库操作失败返回 false
+ * @return 分配成功返回true，否则返回false
  */
 bool SystemController::assignTeacherToCourse(std::string courseId, std::string teacherId, std::string teacherName) {
-    // 1. 权限校验：仅教学秘书可操作
+    // 权限检查
     if (!m_currentUser.isValid() || m_currentUser.role != "secretary") {
-        std::print("Error: Permission denied. Only secretaries can assign teachers.\n");
+        std::print("Error: Only secretary can assign teachers to courses.\n");
         return false;
     }
-    // 2. 检查课程是否存在
+
+    // 检查课程是否存在
     auto course = infra::CourseProxy::findCourseById(*m_db, courseId);
     if (!course) {
         std::print("Error: Course {} not found.\n", courseId);
         return false;
     }
-    // 3. 自动为教师创建账号（如果不存在），密码默认123
-    std::string createTeacherSql = std::format(
-        "INSERT INTO users (user_id, name, password, role) VALUES ('{}', '{}', '123', 'teacher') ON CONFLICT (user_id) DO NOTHING",
-        teacherId, teacherName
+
+    // 执行更新
+    std::string sql = std::format(
+        "UPDATE course SET teacher_id = '{}', teacher_name = '{}' WHERE id = '{}'",
+        teacherId, teacherName, courseId
     );
-    m_db->execute(createTeacherSql);
-    // 4. 调用 Proxy 执行更新操作
-    if (infra::CourseProxy::updateTeacher(*m_db, courseId, teacherId, teacherName)) {
-        std::print("Success: Assigned teacher {}({}) to course {}.\n", teacherName, teacherId, courseId);
+
+    if (m_db->execute(sql)) {
+        // 自动为教师创建账号 (如果不存在)
+        m_db->execute(std::format(
+            "INSERT INTO users (user_id, name, password, role) VALUES ('{}', '{}', '123', 'teacher') ON CONFLICT (user_id) DO NOTHING",
+            teacherId, teacherName
+        ));
+
+        std::print("Teacher {} assigned to course {} successfully!\n", teacherName, course->getName());
         return true;
     } else {
-        std::print("Error: Failed to update teacher info in database.\n");
+        std::print("Error: Failed to assign teacher to course {}\n", courseId);
         return false;
     }
 }
+
 /**
- * @brief 修改或录入成绩（教师专有功能）
+ * @brief 修改课程时间槽 (仅教学秘书可用)
+ * @param courseId 课程ID
+ * @param weekday 星期 (1-7, 0=无固定时间)
+ * @param timeslot 节次
+ * @return 修改成功返回true，否则返回false
+ */
+bool SystemController::setCourseTimeSlot(std::string courseId, int weekday, int timeslot) {
+    // 权限检查
+    if (!m_currentUser.isValid() || m_currentUser.role != "secretary") {
+        std::print("Error: Only secretary can modify course timeslot.\n");
+        return false;
+    }
+
+    // 参数合法性校验
+    if (weekday < 0 || weekday > 7) {
+        std::print("Error: Invalid weekday (must be 0-7).\n");
+        return false;
+    }
+
+    if (timeslot < 0) {
+        std::print("Error: Invalid timeslot (must be >= 0).\n");
+        return false;
+    }
+
+    // 检查课程是否存在
+    auto course = infra::CourseProxy::findCourseById(*m_db, courseId);
+    if (!course) {
+        std::print("Error: Course {} not found.\n", courseId);
+        return false;
+    }
+
+    // 执行更新
+    std::string sql = std::format(
+        "UPDATE course SET weekday = {}, timeslot = {} WHERE id = '{}'",
+        weekday, timeslot, courseId
+    );
+
+    if (m_db->execute(sql)) {
+        std::print("Course {} timeslot updated to {} (weekday: {}, slot: {})!\n",
+                   course->getName(), Timeslot(weekday, timeslot).toString(), weekday, timeslot);
+        return true;
+    } else {
+        std::print("Error: Failed to update timeslot for course {}\n", courseId);
+        return false;
+    }
+}
+
+/**
+ * @brief 录入/修改学生成绩 (仅教师可用)
  * @param sid 学生ID
  * @param cid 课程ID
- * @param score 分数 (0-100)
- * @return 操作成功返回 true
+ * @param score 成绩 (0-100)
+ * @return 操作成功返回true，否则返回false
  */
 bool SystemController::updateGrade(std::string sid, std::string cid, int score) {
     // 权限检查
     if (!m_currentUser.isValid() || m_currentUser.role != "teacher") {
-        std::print("Error: Permission denied. Only teachers can update grades.\n");
+        std::print("Error: Only teachers can update grades.\n");
         return false;
     }
-    // 校验所有权：检查课程是否由该教师授课
+
+    // 成绩范围校验
+    if (score < 0 || score > 100) {
+        std::print("Error: Invalid score (must be 0-100).\n");
+        return false;
+    }
+
+    // 检查课程是否存在且为当前教师授课
     auto course = infra::CourseProxy::findCourseById(*m_db, cid);
     if (!course) {
         std::print("Error: Course {} not found.\n", cid);
         return false;
     }
+
     if (course->getTeacherId() != m_currentUser.id) {
-        std::print("Error: You ({}) are not authorized to grade course {} (taught by {}).\n",
-                   m_currentUser.name, course->getName(), course->getTeacherName());
+        std::print("Error: You are not the teacher of course {}.\n", cid);
         return false;
     }
-    // 1. 业务校验 (例如成绩范围)
-    if (score < 0 || score > 100) {
-        std::print("Error: Invalid score {}. Must be between 0 and 100.\n", score);
+
+    // 检查学生是否选修该课程
+    if (!infra::StudentProxy::isEnrolled(*m_db, sid, cid)) {
+        std::print("Error: Student {} is not enrolled in course {}.\n", sid, cid);
         return false;
     }
-    // 2. 持久化
-    if (infra::EnrollmentProxy::updateScore(*m_db, sid, cid, score)) {
-        std::print("Success: Updated grade for student {} in course {} to {}.\n", sid, cid, score);
+
+    // 执行成绩更新 (存在则更新，不存在则插入)
+    std::string sql = std::format(
+        "INSERT INTO enrollment (student_id, course_id, score) VALUES ('{}', '{}', {}) "
+        "ON CONFLICT (student_id, course_id) DO UPDATE SET score = EXCLUDED.score",
+        sid, cid, score
+    );
+
+    if (m_db->execute(sql)) {
+        std::print("Grade updated successfully! Student {}: Course {} score = {}\n", sid, cid, score);
         return true;
     } else {
-        std::print("Error: Failed to update grade in database.\n");
+        std::print("Error: Failed to update grade for student {} in course {}\n", sid, cid);
         return false;
     }
 }

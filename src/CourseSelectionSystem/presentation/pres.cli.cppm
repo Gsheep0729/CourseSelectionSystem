@@ -28,6 +28,11 @@
 * * 完善学生端「查看成绩」功能，调用 getMyGrades 接口实现完整展示
 * [v5.0.2] Zhang Tao 2026-01-17
 * * 实现教学秘书「分配教师」功能，完成课程-教师关联配置
+* [v5.0.3] Zhang Tao 2026-01-17
+* * 完善教学秘书「设置上课时间」功能，实现课程时间更新全链路
+* [v5.1] Integrated 2026-01-18
+* * 修复编译报错：访问私有成员 m_db、setCourseTimeSlot 接口调用问题
+* * 替换直接数据库访问为 Controller 封装的 getCourseById 接口
 */
 export module presentation;
 import application;
@@ -152,13 +157,12 @@ std::string UserInterface::showLoginMenu() {
     if (!m_controller) {
         std::print("⚠️  控制器未初始化，跳过密码校验\n");
     } else {
-        // 注释：后端 login 接口实现后启用
-        // if (!m_controller->login(user_id, password)) {
-        //     std::print("❌ 账号或密码错误！请重新登录。\n");
-        //     std::print("按Enter键继续...");
-        //     std::cin.get();
-        //     return "";
-        // }
+        if (!m_controller->login(user_id, password)) {
+            std::print("❌ 账号或密码错误！请重新登录。\n");
+            std::print("按Enter键继续...");
+            std::cin.get();
+            return "";
+        }
     }
     std::print("✅ 登录成功！\n");
     int role = showRoleSelectionMenu();
@@ -527,8 +531,7 @@ void UserInterface::showSecretaryMenu(std::string_view secretaryId) {
                 std::string courseId = getInputWithPrompt("\n请输入要分配教师的课程ID：");
                 std::string teacherId = getInputWithPrompt("请输入教师ID：");
                 std::string teacherName = getInputWithPrompt("请输入教师姓名：");
-                // 调用Controller接口执行分配操作（假设后端已实现assignTeacherToCourse方法）
-                // 注：此处需确保SystemController中存在对应接口，参数顺序与输入一致
+                // 调用Controller接口执行分配操作
                 bool assignSuccess = m_controller->assignTeacherToCourse(courseId, teacherId, teacherName);
                 if (assignSuccess) {
                     std::print("✅ 教师分配成功！课程 {} 已分配给教师 {}({})。\n", courseId, teacherName, teacherId);
@@ -539,56 +542,68 @@ void UserInterface::showSecretaryMenu(std::string_view secretaryId) {
             }
             case 3: {
                 std::print("\n--- 设置上课时间 ---\n");
-                std::print("(功能开发中...)\n");
-                // 注释：后端 setCourseTimeSlot 接口实现后启用
-                // if (!m_controller) {
-                //     std::print("Error: System Controller not initialized.\n");
-                //     break;
-                // }
-                // std::print("📋 系统中所有课程：\n");
-                // auto allCourses = m_controller->getAllCourses();
-                // if (allCourses.empty()) {
-                //     std::print("暂无课程数据，请先创建课程。\n");
-                //     break;
-                // }
-                // std::print("{:<12} | {:<25} | {:<20}\n", "课程ID", "课程名称", "当前上课时间");
-                // std::print("{:<12} | {:<25} | {:<20}\n", "----------", "-------------------------", "--------------------");
-                // for (const auto& course : allCourses) {
-                //     std::string currentTime = course->getTimeslot().toString();
-                //     std::print("{:<12} | {:<25} | {:<20}\n",
-                //               course->getId(),
-                //               course->getName().substr(0, 22) + (course->getName().size() > 22 ? "..." : ""),
-                //               currentTime);
-                // }
-                // std::string courseId = getInputWithPrompt("\n请输入要设置时间的课程ID：");
-                // int weekday, slot;
-                // while (true) {
-                //     std::print("请输入新的上课星期 (1-7): ");
-                //     std::cin >> weekday;
-                //     if (std::cin.fail() || weekday < 1 || weekday > 7) {
-                //         clearInputBuffer();
-                //         std::print("❌ 无效星期！请输入1-7之间的整数（1=周一，7=周日）。\n");
-                //         continue;
-                //     }
-                //     clearInputBuffer();
-                //     break;
-                // }
-                // while (true) {
-                //     std::print("请输入新的上课节次 (1-5): ");
-                //     std::cin >> slot;
-                //     if (std::cin.fail() || slot < 1 || slot > 5) {
-                //         clearInputBuffer();
-                //         std::print("❌ 无效节次！请输入1-5之间的整数（1=1-2节，2=3-4节...）。\n");
-                //         continue;
-                //     }
-                //     clearInputBuffer();
-                //     break;
-                // }
-                // if (m_controller->setCourseTimeSlot(courseId, weekday, slot)) {
-                //     std::print("✅ 上课时间设置成功！\n");
-                // } else {
-                //     std::print("❌ 上课时间设置失败！请检查课程ID是否存在或时间是否冲突。\n");
-                // }
+                if (!m_controller) {
+                    std::print("Error: System Controller not initialized.\n");
+                    break;
+                }
+                // 显示系统中所有课程及当前上课时间
+                std::print("📋 系统中所有课程：\n");
+                auto allCourses = m_controller->getAllCourses();
+                if (allCourses.empty()) {
+                    std::print("暂无课程数据，请先创建课程。\n");
+                    break;
+                }
+                // 格式化显示课程列表（含当前时间）
+                std::print("{:<12} | {:<25} | {:<20}\n", "课程ID", "课程名称", "当前上课时间");
+                std::print("{:<12} | {:<25} | {:<20}\n", "----------", "-------------------------", "--------------------");
+                for (const auto& course : allCourses) {
+                    std::string currentTime = course->getTimeslot().toString();
+                    std::print("{:<12} | {:<25} | {:<20}\n",
+                              course->getId(),
+                              course->getName().substr(0, 22) + (course->getName().size() > 22 ? "..." : ""),
+                              currentTime);
+                }
+                // 获取用户输入
+                std::string courseId = getInputWithPrompt("\n请输入要设置时间的课程ID：");
+                int weekday, slot;
+                // 输入并验证星期（1-7）
+                while (true) {
+                    std::print("请输入新的上课星期 (1-7): ");
+                    std::cin >> weekday;
+                    if (std::cin.fail() || weekday < 1 || weekday > 7) {
+                        clearInputBuffer();
+                        std::print("❌ 无效星期！请输入1-7之间的整数（1=周一，7=周日）。\n");
+                        continue;
+                    }
+                    clearInputBuffer();
+                    break;
+                }
+                // 输入并验证节次（1-5）
+                while (true) {
+                    std::print("请输入新的上课节次 (1-5): ");
+                    std::cin >> slot;
+                    if (std::cin.fail() || slot < 1 || slot > 5) {
+                        clearInputBuffer();
+                        std::print("❌ 无效节次！请输入1-5之间的整数（1=1-2节，2=3-4节...）。\n");
+                        continue;
+                    }
+                    clearInputBuffer();
+                    break;
+                }
+                // 调用Controller接口执行时间更新
+                bool timeSetSuccess = m_controller->setCourseTimeSlot(courseId, weekday, slot);
+                if (timeSetSuccess) {
+                    // 调用封装的getCourseById接口获取更新后的课程信息（避免直接访问私有m_db）
+                    auto updatedCourse = m_controller->getCourseById(courseId);
+                    if (updatedCourse) {
+                        std::string newTime = updatedCourse->getTimeslot().toString();
+                        std::print("✅ 上课时间设置成功！课程 {} 新时间：{}\n", courseId, newTime);
+                    } else {
+                        std::print("✅ 上课时间设置成功！但获取更新后课程信息失败。\n");
+                    }
+                } else {
+                    std::print("❌ 上课时间设置失败！请检查课程ID是否存在或时间是否冲突。\n");
+                }
                 break;
             }
             case 4:
