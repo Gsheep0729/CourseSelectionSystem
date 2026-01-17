@@ -38,6 +38,8 @@
 * * [Fix] 修复 createCourse 自动创建教师账户逻辑
 * [v5.0] Zhang Tao 2026-01-17
 * * 新增 getMyGrades 接口，支持学生查询个人成绩
+* [v5.0.2] Zhang Tao 2026-01-17
+* * 新增 assignTeacherToCourse 接口，支持教学秘书为课程分配教师
 */
 export module application;
 import domain;
@@ -63,6 +65,7 @@ public:
     // 教学秘书功能
     bool createCourse(std::string id, std::string name, int capacity, double credit,
                       std::string teacherId, std::string teacherName, int weekday, int timeslot); // 创建新课程
+    bool assignTeacherToCourse(std::string courseId, std::string teacherId, std::string teacherName); // 为课程分配教师
     // 教师功能
     bool updateGrade(std::string sid, std::string cid, int score); // 录入/修改学生成绩
     // --- 数据查询接口 (供 UI 调用) ---
@@ -328,11 +331,44 @@ bool SystemController::createCourse(std::string id, std::string name, int capaci
             teacherId, teacherName
         );
         m_db->execute(sql);
-
         std::print("Success: Course '{}' created successfully.\n", name);
         return true;
     } else {
         std::print("Error: Failed to create course in database.\n");
+        return false;
+    }
+}
+/**
+ * @brief 为课程分配教师（教学秘书专有功能）
+ * @param courseId 课程ID
+ * @param teacherId 教师ID
+ * @param teacherName 教师姓名
+ * @return 分配成功返回 true，权限不足、课程不存在或数据库操作失败返回 false
+ */
+bool SystemController::assignTeacherToCourse(std::string courseId, std::string teacherId, std::string teacherName) {
+    // 1. 权限校验：仅教学秘书可操作
+    if (!m_currentUser.isValid() || m_currentUser.role != "secretary") {
+        std::print("Error: Permission denied. Only secretaries can assign teachers.\n");
+        return false;
+    }
+    // 2. 检查课程是否存在
+    auto course = infra::CourseProxy::findCourseById(*m_db, courseId);
+    if (!course) {
+        std::print("Error: Course {} not found.\n", courseId);
+        return false;
+    }
+    // 3. 自动为教师创建账号（如果不存在），密码默认123
+    std::string createTeacherSql = std::format(
+        "INSERT INTO users (user_id, name, password, role) VALUES ('{}', '{}', '123', 'teacher') ON CONFLICT (user_id) DO NOTHING",
+        teacherId, teacherName
+    );
+    m_db->execute(createTeacherSql);
+    // 4. 调用 Proxy 执行更新操作
+    if (infra::CourseProxy::updateTeacher(*m_db, courseId, teacherId, teacherName)) {
+        std::print("Success: Assigned teacher {}({}) to course {}.\n", teacherName, teacherId, courseId);
+        return true;
+    } else {
+        std::print("Error: Failed to update teacher info in database.\n");
         return false;
     }
 }

@@ -26,6 +26,8 @@
 * * 修复编译报错：size_t 命名空间问题、createCourse 参数不匹配问题
 * [v5.0.1] Zhang Tao 2026-01-17
 * * 完善学生端「查看成绩」功能，调用 getMyGrades 接口实现完整展示
+* [v5.0.2] Zhang Tao 2026-01-17
+* * 实现教学秘书「分配教师」功能，完成课程-教师关联配置
 */
 export module presentation;
 import application;
@@ -500,35 +502,39 @@ void UserInterface::showSecretaryMenu(std::string_view secretaryId) {
             }
             case 2: {
                 std::print("\n--- 分配教师 ---\n");
-                std::print("(功能开发中...)\n");
-                // 注释：后端 assignTeacherToCourse 接口实现后启用
-                // if (!m_controller) {
-                //     std::print("Error: System Controller not initialized.\n");
-                //     break;
-                // }
-                // std::print("📋 系统中所有课程：\n");
-                // auto allCourses = m_controller->getAllCourses();
-                // if (allCourses.empty()) {
-                //     std::print("暂无课程数据，请先创建课程。\n");
-                //     break;
-                // }
-                // std::print("{:<12} | {:<25} | {:<15}\n", "课程ID", "课程名称", "当前教师");
-                // std::print("{:<12} | {:<25} | {:<15}\n", "----------", "-------------------------", "---------------");
-                // for (const auto& course : allCourses) {
-                //     std::string currentTeacher = course->getTeacherName().empty() ? "未分配" : course->getTeacherName();
-                //     std::print("{:<12} | {:<25} | {:<15}\n",
-                //               course->getId(),
-                //               course->getName().substr(0, 22) + (course->getName().size() > 22 ? "..." : ""),
-                //               currentTeacher);
-                // }
-                // std::string courseId = getInputWithPrompt("\n请输入要分配教师的课程ID：");
-                // std::string teacherId = getInputWithPrompt("请输入教师ID：");
-                // std::string teacherName = getInputWithPrompt("请输入教师姓名：");
-                // if (m_controller->assignTeacherToCourse(courseId, teacherId, teacherName)) {
-                //     std::print("✅ 教师分配成功！\n");
-                // } else {
-                //     std::print("❌ 教师分配失败！请检查课程ID是否存在。\n");
-                // }
+                if (!m_controller) {
+                    std::print("Error: System Controller not initialized.\n");
+                    break;
+                }
+                // 显示系统中所有课程及当前教师分配状态
+                std::print("📋 系统中所有课程：\n");
+                auto allCourses = m_controller->getAllCourses();
+                if (allCourses.empty()) {
+                    std::print("暂无课程数据，请先创建课程。\n");
+                    break;
+                }
+                // 格式化显示课程列表
+                std::print("{:<12} | {:<25} | {:<15}\n", "课程ID", "课程名称", "当前教师");
+                std::print("{:<12} | {:<25} | {:<15}\n", "----------", "-------------------------", "---------------");
+                for (const auto& course : allCourses) {
+                    std::string currentTeacher = course->getTeacherName().empty() ? "未分配" : course->getTeacherName();
+                    std::print("{:<12} | {:<25} | {:<15}\n",
+                              course->getId(),
+                              course->getName().substr(0, 22) + (course->getName().size() > 22 ? "..." : ""),
+                              currentTeacher);
+                }
+                // 获取用户输入
+                std::string courseId = getInputWithPrompt("\n请输入要分配教师的课程ID：");
+                std::string teacherId = getInputWithPrompt("请输入教师ID：");
+                std::string teacherName = getInputWithPrompt("请输入教师姓名：");
+                // 调用Controller接口执行分配操作（假设后端已实现assignTeacherToCourse方法）
+                // 注：此处需确保SystemController中存在对应接口，参数顺序与输入一致
+                bool assignSuccess = m_controller->assignTeacherToCourse(courseId, teacherId, teacherName);
+                if (assignSuccess) {
+                    std::print("✅ 教师分配成功！课程 {} 已分配给教师 {}({})。\n", courseId, teacherName, teacherId);
+                } else {
+                    std::print("❌ 教师分配失败！请检查课程ID是否存在或教师信息是否有效。\n");
+                }
                 break;
             }
             case 3: {

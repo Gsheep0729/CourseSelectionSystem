@@ -963,19 +963,15 @@ void Student::dropCourse(Course* c) {
 * * 实现基于数据库的实时选课/退课业务逻辑（含并发安全/容量检查）
 * [v3.0] GY   2026-01-10
     本次提交完成了核心架构的重构，解决了 Controller 直接依赖数据库的违规问题，并实现了关键业务逻辑。
-
     [架构重构]
     - Infrastructure: 新增 StudentProxy, CourseProxy, EnrollmentProxy 分区模块。
     - Refactor: 将 SystemController 中的 SQL 语句全部迁移至代理层，初步实现 4 层架构的关注点分离。
-
     [领域逻辑]
     - Domain: 新增 Timeslot 模块，并在 Student 实体中实现 hasTimeConflict 冲突检测算法。
     - Entity: 扩展 Course 实体，支持学分、教师、时间槽等完整字段。
-
     [业务功能]
     - Secretary: 完成“创建课程”功能的后端链路与 CLI 对接。
     - Teacher: 完成“录入成绩”功能的数据库交互。
-
     [构建系统]
     - CMake: 更新配置以支持新增的 Infrastructure 分区文件。
 * [v4.5] GY   2026-01-16
@@ -984,13 +980,13 @@ void Student::dropCourse(Course* c) {
 * * 在选课、退课、评分等业务逻辑中集成细粒度权限校验
 * * 新增 getMySchedule, getCourseStudentList 等查询桥接接口供 UI 调用
 * * [Fix] 修复 createCourse 自动创建教师账户逻辑
+* [v5.0] Zhang Tao 2026-01-17
+* * 新增 getMyGrades 接口，支持学生查询个人成绩
 */
 export module application;
-
 import domain;
 import infrastructure;
 import std;
-
 export class SystemController {
 public:
     struct User {
@@ -999,34 +995,31 @@ public:
         std::string role; // "student", "teacher", "secretary"
         bool isValid() const { return !id.empty(); }
     };
-
     SystemController(); // 构造函数：初始化数据库适配器
     void initialize(); // 系统初始化：建立连接、创建表结构
     void run(); // 启动系统运行逻辑
-
     // 用户认证
     bool login(std::string id, std::string password);
     User getCurrentUser() const { return m_currentUser; }
-
     // 核心业务功能
     void performEnrollment(std::string sid, std::string cid); // 执行选课业务逻辑
     void performDrop(std::string sid, std::string cid); // 执行退课业务逻辑
-
     // 教学秘书功能
     bool createCourse(std::string id, std::string name, int capacity, double credit,
                       std::string teacherId, std::string teacherName, int weekday, int timeslot); // 创建新课程
-
     // 教师功能
     bool updateGrade(std::string sid, std::string cid, int score); // 录入/修改学生成绩
-
     // --- 数据查询接口 (供 UI 调用) ---
-
     // 获取当前登录学生的课表
     std::vector<Course> getMySchedule() {
         if (!m_currentUser.isValid() || m_currentUser.role != "student") return {};
         return infra::StudentProxy::findSchedule(*m_db, m_currentUser.id);
     }
-
+    // 获取当前登录学生的成绩
+    std::vector<infra::GradeDTO> getMyGrades() {
+        if (!m_currentUser.isValid() || m_currentUser.role != "student") return {};
+        return infra::EnrollmentProxy::findGradesByStudent(*m_db, m_currentUser.id);
+    }
     // 获取某门课程的学生名单 (仅教师/管理员可用)
     std::vector<infra::CourseStudentDTO> getCourseStudentList(std::string courseId) {
         // 简单权限校验
@@ -1034,23 +1027,17 @@ public:
         if (m_currentUser.role == "student") return {}; // 学生不可见
         return infra::CourseProxy::findStudentsByCourse(*m_db, courseId);
     }
-
     // 获取所有课程列表 (公共查询)
     std::vector<std::unique_ptr<Course>> getAllCourses() {
         return infra::CourseProxy::findAllCourses(*m_db);
     }
-
 private:
     std::unique_ptr<db::DBAdapter> m_db; // 数据库适配器指针
     User m_currentUser; // 当前登录用户
 };
-
 // --- Implementation ---
-
 // @brief 构造函数
-
 SystemController::SystemController() : m_db(std::make_unique<db::DBAdapter>()) {}
-
 /**
  * @brief 系统环境初始化
  * 建立数据库连接，执行 DDL 语句重置表结构，并导入初始的用户及课程数据。
@@ -1062,13 +1049,11 @@ void SystemController::initialize() {
         std::print("Error: Failed to connect to database.\n");
         return;
     }
-
     // DDL: 重置数据库结构
     m_db->execute("DROP TABLE IF EXISTS enrollment CASCADE");
     m_db->execute("DROP TABLE IF EXISTS course CASCADE");
     m_db->execute("DROP TABLE IF EXISTS student CASCADE");
     m_db->execute("DROP TABLE IF EXISTS users CASCADE");
-
     // 创建用户表 (用于认证)
     m_db->execute(R"(
         CREATE TABLE users (
@@ -1078,7 +1063,6 @@ void SystemController::initialize() {
             role VARCHAR(20) CHECK (role IN ('student','teacher','secretary'))
         )
     )");
-
     m_db->execute(R"(
         CREATE TABLE course (
             id VARCHAR(50) PRIMARY KEY,
@@ -1092,9 +1076,7 @@ void SystemController::initialize() {
             timeslot INT
         )
     )");
-
     m_db->execute("CREATE TABLE student (id VARCHAR(50) PRIMARY KEY, name TEXT)");
-
     m_db->execute(R"(
         CREATE TABLE enrollment (
             student_id VARCHAR(50) REFERENCES student(id),
@@ -1103,65 +1085,24 @@ void SystemController::initialize() {
             PRIMARY KEY (student_id, course_id)
         )
     )");
-
     std::print("Database initialized.\n");
-
     // --- 录入默认演示数据 ---
-
     // 1. 录入默认学生账户
     // 学号: 2024051604085, 用户名: Gao Yang, 默认密码: 123
     m_db->execute("INSERT INTO users VALUES ('2024051604085', 'Gao Yang', '123', 'student')");
     m_db->execute("INSERT INTO student (id, name) VALUES ('2024051604085', 'Gao Yang')");
-
     // 2. 录入默认教师账户
     // 教师工号: 20131672, 用户名: 龚伟 , 默认密码: 123
     m_db->execute("INSERT INTO users VALUES ('20131672', '龚伟', '123', 'teacher')");
-
     // 3. 录入默认教学秘书账户
     // 账号: admin, 用户名: Secretary, 默认密码: 123
     m_db->execute("INSERT INTO users VALUES ('admin', 'Secretary', '123', 'secretary')");
-
     // --- 导入真实课程数据 ---
     struct RawCourse {
         std::string id; std::string name; int cap; double cr;
         std::string tid; std::string tname; int w; int t;
     };
     std::vector<RawCourse> courses = {
-        /*
-        {"0000002564", "国家安全教育（网络视频课）", 120, 1, "00000000", "网络教师", 0, 0},
-        {"0000006001", "军事理论（网络视频课）", 120, 2, "22000708", "张国清", 0, 0},
-        {"0000002209", "习近平总书记关于教育的重要论述专题（网络视频课）", 120, 1, "20131591", "毛宇", 0, 0},
-        {"003AA8002A", "大学英语I", 120, 3, "20247023", "赖守浪", 1, 3},
-        {"003A202027", "军事技能", 120, 2, "20131725", "任文霞", 0, 0},
-        {"083BA50005", "计算机导论", 120, 2.5, "20220045", "孙晓宁", 3, 4},
-        {"083BA8013A", "C语言程序设计", 120, 4, "20200085", "肖颗", 1, 1},
-        {"003AA00001", "形势与政策I", 120, 0.25, "20131381", "黄玲", 2, 4},
-        {"003AA600AA", "思想道德与法治", 120, 2.5, "20141113", "伍崇利", 1, 4},
-        {"0504321004", "线性代数", 120, 4, "20210031", "莫长鑫", 2, 2},
-        {"073BAA0033", "高等数学(1)", 120, 5, "20131925", "赵侯宇", 2, 1},
-        {"003AA2003A", "体育I", 120, 1, "20180056", "魏胜辉", 3, 2},
-        {"003AA40037", "大学生心理健康教育", 120, 2, "20200047", "彭臻", 2, 5},
-        {"083BA70004", "数据结构", 120, 3.5, "20240120", "高丽萍", 1, 1},
-        {"083BA70005", "计算机系统基础", 120, 3.5, "20230071", "郭桃林", 1, 2},
-        {"083BA8024A", "Linux程序设计", 120, 4, "20170001,20240008", "冯骥,袁晓涵", 2, 2},
-        {"083FA10006", "C语言程序设计课程设计", 120, 0.5, "20200085", "肖颗", 0, 0},
-        {"083FA20051", "数据结构课程设计", 120, 1, "20240120", "高丽萍", 0, 0},
-        {"003AA00002", "形势与政策II", 120, 0.25, "20131675", "黎朝红", 1, 4},
-        {"003AA3000A", "中国近现代史纲要", 120, 2.5, "20131930", "李虹辉", 2, 2},
-        {"073BAA0034", "高等数学(2)", 120, 5, "20170051,20190041", "许秋菊,郭闪闪", 2, 1},
-        {"003AA2004A", "体育II", 120, 1, "20131344", "成平", 3, 2},
-        {"003AA8003A", "大学英语II", 120, 3, "20130891", "沈纯", 1, 3},
-        {"XSC2013011", "职业生涯规划与就业指导1", 120, 1, "20210030", "李黎", 5, 3},
-        {"083CA70013", "数据库原理及应用", 120, 3.5, "20210071", "肖旋", 1, 4},
-        {"083EB80135", "软件构建与实现", 120, 4, "20131672", "龚伟", 1, 1},
-        {"083FA20056", "软件工程综合实训1-1（C++方向）", 120, 1, "20131672", "龚伟", 0, 0},
-        {"113BA7002A", "计算机网络", 120, 3.5, "20200085", "肖颗", 2, 3},
-        {"003AA00003", "形势与政策III", 120, 0.25, "20130679", "高德华", 2, 1},
-        {"003EA4006A", "马克思主义基本原理", 120, 2.5, "20131977", "陈雪连", 2, 2},
-        {"073BAR0034", "概率论与数理统计", 120, 4, "20131918", "吕美英", 1, 2},
-        {"04A", "体育Ⅲ（羽毛球）", 120, 1, "20132168", "陈丽", 2, 4},
-        {"003AA60026", "大学英语IV拓展课系列- AI辅助专门用途英语翻译", 120, 3, "20130442", "龙涛", 4, 5},
-        */
         {"083BA70007", "操作系统原理与实践", 120, 3.5, "20132108", "杜兴", 1, 2},
         {"083BA80006", "大学物理", 120, 4, "20250043", "孙川", 3, 5},
         {"083CA40010", "软件工程导论", 120, 2, "20130951", "魏延", 2, 1},
@@ -1172,14 +1113,12 @@ void SystemController::initialize() {
         {"003EAC002B", "毛泽东思想和中国特色社会主义理论体系概论", 120, 2.5, "20150015", "沈乾飞", 3, 4},
         {"04B", "体育Ⅳ（羽毛球）", 120, 1, "20132168", "陈丽", 2, 4}
     };
-
     for (const auto& c : courses) {
         std::string sql = std::format(
             "INSERT INTO course VALUES ('{}', '{}', {}, 0, {}, '{}', '{}', {}, {})",
             c.id, c.name, c.cap, c.cr, c.tid, c.tname, c.w, c.t
         );
         m_db->execute(sql);
-
         // 自动为课程教师创建账号 (如果不存在)，密码统一为 123
         m_db->execute(std::format(
             "INSERT INTO users (user_id, name, password, role) VALUES ('{}', '{}', '123', 'teacher') ON CONFLICT (user_id) DO NOTHING",
@@ -1188,14 +1127,12 @@ void SystemController::initialize() {
     }
     std::print("Initial data loaded.\n");
 }
-
 /**
  * @brief 运行主逻辑
  */
 void SystemController::run() {
     std::print("System Controller Ready. Please login via UI.\n");
 }
-
 /**
  * @brief 处理用户登录请求
  * @param id 用户唯一标识ID
@@ -1206,7 +1143,6 @@ bool SystemController::login(std::string id, std::string password) {
     // 简单的明文密码验证 (实际生产应使用哈希)
     std::string sql = std::format("SELECT name, role FROM users WHERE user_id = '{}' AND password = '{}'", id, password);
     auto res = m_db->query(sql);
-
     if (res && !res->empty()) {
         std::string name = (*res)[0][0];
         std::string role = (*res)[0][1];
@@ -1214,11 +1150,9 @@ bool SystemController::login(std::string id, std::string password) {
         std::print("Login successful: {} ({})\n", name, role);
         return true;
     }
-
     std::print("Login failed: Invalid credentials.\n");
     return false;
 }
-
 /**
  * @brief 执行选课业务逻辑
  * @param sid 学生ID
@@ -1239,41 +1173,34 @@ void SystemController::performEnrollment(std::string sid, std::string cid) {
         std::print("Error: You can only enroll for yourself.\n");
         return;
     }
-
     // 1. 获取课程对象
     auto course = infra::CourseProxy::findCourseById(*m_db, cid);
     if (!course) {
         std::print("Error: Course {} not found.\n", cid);
         return;
     }
-
     // 2. 获取学生对象 (含已选课程)
     auto student = infra::StudentProxy::findStudentById(*m_db, sid);
     if (!student) {
         std::print("Error: Student {} not found.\n", sid);
         return;
     }
-
     // 3. 执行业务规则校验
-
     // 3.1 检查是否已选
     if (student->isEnrolled(course.get())) {
         std::print("Error: Already enrolled in {}\n", course->getName());
         return;
     }
-
     // 3.2 检查容量
     if (course->isFull()) {
         std::print("Error: Course {} is full.\n", course->getName());
         return;
     }
-
     // 3.3 检查时间冲突
     if (student->hasTimeConflict(course.get())) {
         std::print("Error: Time conflict detected for course {}\n", course->getName());
         return;
     }
-
     // 4. 持久化 (通过 Proxy)
     if (infra::StudentProxy::saveEnrollment(*m_db, sid, cid)) {
         // 重要：重新加载以显示更新后的人数
@@ -1283,7 +1210,6 @@ void SystemController::performEnrollment(std::string sid, std::string cid) {
         std::print("Error: Database operation failed.\n");
     }
 }
-
 /**
  * @brief 执行退课业务逻辑
  * @param sid 学生ID
@@ -1304,13 +1230,11 @@ void SystemController::performDrop(std::string sid, std::string cid) {
         std::print("Error: You can only drop courses for yourself.\n");
         return;
     }
-
     // 1. 简单校验
     if (!infra::StudentProxy::isEnrolled(*m_db, sid, cid)) {
         std::print("Error: Not enrolled in course {}\n", cid);
         return;
     }
-
     // 2. 执行退课
     if (infra::StudentProxy::removeEnrollment(*m_db, sid, cid)) {
         std::print("Success: Dropped course {}\n", cid);
@@ -1318,7 +1242,6 @@ void SystemController::performDrop(std::string sid, std::string cid) {
         std::print("Error: Database operation failed.\n");
     }
 }
-
 /**
  * @brief 创建新课程（教学秘书专有功能）
  * @param id 课程ID
@@ -1338,11 +1261,9 @@ bool SystemController::createCourse(std::string id, std::string name, int capaci
         std::print("Error: Permission denied. Only secretaries can create courses.\n");
         return false;
     }
-
     // 1. 构建领域对象 (Value Objects & Entities)
     Timeslot ts(weekday, timeslot);
     Course newCourse(id, name, capacity, 0, credit, teacherId, teacherName, ts);
-
     // 2. 调用 Proxy 持久化
     if (infra::CourseProxy::addCourse(*m_db, newCourse)) {
         // 自动为该教师创建登录账号 (如果不存在)
@@ -1351,7 +1272,7 @@ bool SystemController::createCourse(std::string id, std::string name, int capaci
             teacherId, teacherName
         );
         m_db->execute(sql);
-        
+
         std::print("Success: Course '{}' created successfully.\n", name);
         return true;
     } else {
@@ -1359,7 +1280,6 @@ bool SystemController::createCourse(std::string id, std::string name, int capaci
         return false;
     }
 }
-
 /**
  * @brief 修改或录入成绩（教师专有功能）
  * @param sid 学生ID
@@ -1373,26 +1293,22 @@ bool SystemController::updateGrade(std::string sid, std::string cid, int score) 
         std::print("Error: Permission denied. Only teachers can update grades.\n");
         return false;
     }
-
     // 校验所有权：检查课程是否由该教师授课
     auto course = infra::CourseProxy::findCourseById(*m_db, cid);
     if (!course) {
         std::print("Error: Course {} not found.\n", cid);
         return false;
     }
-
     if (course->getTeacherId() != m_currentUser.id) {
-        std::print("Error: You ({}) are not authorized to grade course {} (taught by {}).\n", 
+        std::print("Error: You ({}) are not authorized to grade course {} (taught by {}).\n",
                    m_currentUser.name, course->getName(), course->getTeacherName());
         return false;
     }
-
     // 1. 业务校验 (例如成绩范围)
     if (score < 0 || score > 100) {
         std::print("Error: Invalid score {}. Must be between 0 and 100.\n", score);
         return false;
     }
-
     // 2. 持久化
     if (infra::EnrollmentProxy::updateScore(*m_db, sid, cid, score)) {
         std::print("Success: Updated grade for student {} in course {} to {}.\n", sid, cid, score);
@@ -1925,19 +1841,22 @@ bool DBAdapter::is_connected() const {
 ```cppm
 /**
 * @file    src/CourseSelectionSystem/infrastructure/infra.dtos.cppm
-* @date    2026-01-15
+* @date    2026-01-16
 * @author  GY
 * @brief   基础设施层分区：数据传输对象 (DTO)
 *
-* 定义用于在层之间传输数据的结构体。
-* 避免将领域实体直接暴露给表现层。
+* 定义用于在层之间传输数据的结构体，避免将领域实体直接暴露给表现层。
+* 兼顾原有数据结构和新增的学分展示、课程-学生关联查询需求。
 *
 * Change Log:
-* [v4.5] GY   2026-01-15
+* [v1.0] GY   2026-01-15
 * * 初始版本：定义 CourseDTO, GradeDTO, StudentDTO 用于查询结果封装
+* [v2.0] GY   2026-01-16
+* * 新增 CourseStudentDTO 适配课程学生列表查询
+* * 为 GradeDTO 新增 credit 字段，适配成绩查询时的学分展示需求
+* * 恢复 GradeDTO 中 studentId/studentName 核心字段，保证成绩与学生的关联
+* * 为所有 DTO 补充格式化输出方法，简化表现层展示逻辑
 */
-
-
 
 export module infrastructure:dtos;
 
@@ -1946,7 +1865,7 @@ import std;
 export namespace infra {
 
 /**
- * @brief 课程信息 DTO
+ * @brief 课程信息 DTO (基础课程信息传输)
  */
 struct CourseDTO {
     std::string id;
@@ -1955,20 +1874,47 @@ struct CourseDTO {
     std::string teacherName;
     std::string timeslot; // 格式化后的时间字符串，如 "Mon Slot 1"
     std::string location; // 教室地点
+
+    // 格式化输出课程信息
+    std::string toString() const {
+        return std::format("[Course] {} - {} ({:.1f}学分) | 教师: {} | 时间: {}",
+            id, name, credit, teacherName, timeslot);
+    }
 };
 
 /**
- * @brief 成绩信息 DTO
+ * @brief 成绩信息 DTO (关联学生-课程-成绩-学分)
  */
 struct GradeDTO {
-    std::string studentId;
-    std::string studentName;
-    std::string courseId;
-    std::string courseName;
-    int score; // -1 表示暂无成绩
+    std::string studentId;    // 恢复：学生ID
+    std::string studentName;  // 恢复：学生姓名
+    std::string courseId;     // 课程ID
+    std::string courseName;   // 课程名称
+    double credit;            // 新增：课程学分
+    int score;                // 成绩，NULL 则为 -1 (未录入)
+
+    // 格式化输出成绩信息
+    std::string toString() const {
+        std::string scoreStr = (score == -1) ? "未录入" : std::format("{}", score);
+        return std::format("[Grade] 学生: {}({}) | 课程: {}({:.1f}学分) | 成绩: {}",
+            studentName, studentId, courseName, credit, scoreStr);
+    }
 };
 
+/**
+ * @brief 课程-学生关联DTO (用于查询单门课程下的所有学生及成绩)
+ */
+struct CourseStudentDTO {
+    std::string studentId;
+    std::string studentName;
+    int score; // 成绩，NULL 则为 -1
 
+    // 格式化输出学生信息+成绩
+    std::string toString() const {
+        std::string scoreStr = (score == -1) ? "未录入" : std::format("{}", score);
+        return std::format("[Student] {} - {} | 成绩: {}", studentId, studentName, scoreStr);
+    }
+};
 
 /**
  * @brief 学生完整信息 DTO (包含已选课程)
@@ -1977,6 +1923,15 @@ struct StudentDTO {
     std::string id;
     std::string name;
     std::vector<CourseDTO> enrolledCourses;
+
+    // 格式化输出学生及已选课程信息
+    std::string toString() const {
+        std::string info = std::format("学生: {} - {} | 已选课程数: {}\n", id, name, enrolledCourses.size());
+        for (const auto& course : enrolledCourses) {
+            info += "  " + course.toString() + "\n";
+        }
+        return info;
+    }
 };
 
 } // namespace infra
@@ -2003,26 +1958,24 @@ struct StudentDTO {
 * * 初始化成绩代理类结构（基于C++23 Modules）
 * * 实现updateScore方法：支持成绩录入与修改
 * * 增加成绩范围校验（0-100分）
+* [v5.0] Zhang Tao 2026-01-17
+* * 新增 findGradesByStudent 方法，支持学生查询个人成绩
 */
 export module infrastructure:enrollment_proxy;
-
 import :db_adapter;
+import :dtos;
+import :course_proxy;
 import std;
-
 export namespace infra {
-
 class EnrollmentProxy {
 public:
     static bool updateScore(db::DBAdapter& db, std::string_view studentId, std::string_view courseId, int score); // 更新学生在某门课的成绩
     static std::optional<db::Result> findGradesByCourse(db::DBAdapter& db, std::string_view courseId); // 获取某门课程的所有选课记录及成绩
+    static std::vector<GradeDTO> findGradesByStudent(db::DBAdapter& db, std::string_view studentId); // 获取学生个人所有课程成绩
 };
-
 } // namespace infra
-
 // --- Implementation ---
-
 namespace infra {
-
 /**
  * @brief 更新学生在某门课的成绩
  * @param db 数据库适配器引用
@@ -2038,9 +1991,6 @@ bool EnrollmentProxy::updateScore(db::DBAdapter& db, std::string_view studentId,
     );
     return db.execute(sql);
 }
-
-
-
 /**
  * @brief 获取某门课程的所有选课记录及成绩
  * @param db 数据库适配器引用
@@ -2054,7 +2004,42 @@ std::optional<db::Result> EnrollmentProxy::findGradesByCourse(db::DBAdapter& db,
     );
     return db.query(sql);
 }
-
+/**
+ * @brief 获取学生个人所有课程成绩
+ * @param db 数据库适配器引用
+ * @param studentId 学生ID
+ * @return 包含课程名称、学分、成绩的 GradeDTO 列表
+ */
+std::vector<GradeDTO> EnrollmentProxy::findGradesByStudent(db::DBAdapter& db, std::string_view studentId) {
+    std::vector<GradeDTO> grades;
+    // 关联查询 enrollment、course 表，获取成绩及课程信息
+    std::string sql = std::format(
+        "SELECT e.course_id, c.name, c.credit, e.score "
+        "FROM enrollment e "
+        "JOIN course c ON e.course_id = c.id "
+        "WHERE e.student_id = '{}' "
+        "ORDER BY c.credit DESC",
+        studentId
+    );
+    auto res = db.query(sql);
+    if (res) {
+        for (const auto& row : *res) {
+            try {
+                GradeDTO dto;
+                dto.studentId = std::string(studentId);
+                dto.courseId = row[0];
+                dto.courseName = row[1];
+                dto.credit = std::stod(row[2]);
+                // 处理未录入成绩的情况（数据库中为 NULL，对应空字符串）
+                dto.score = row[3].empty() ? -1 : std::stoi(row[3]);
+                grades.emplace_back(dto);
+            } catch (const std::exception& e) {
+                std::print("Error parsing grade row for student {}: {}\n", studentId, e.what());
+            }
+        }
+    }
+    return grades;
+}
 } // namespace infra
 
 ```
@@ -2119,12 +2104,14 @@ export import :dtos;
 * * 增强登录认证流程，添加密码校验
 * * 消除所有功能占位符，完成视图与后端接口的全链路串联
 * * 修复编译报错：size_t 命名空间问题、createCourse 参数不匹配问题
+* [v5.0.1] Zhang Tao 2026-01-17
+* * 完善学生端「查看成绩」功能，调用 getMyGrades 接口实现完整展示
 */
 export module presentation;
 import application;
 import domain;
+import infrastructure;
 import std;
-
 // --- 类声明 ---
 export class UserInterface {
 public:
@@ -2140,12 +2127,10 @@ private:
     std::string getInputWithPrompt(const std::string& prompt) const; // 通用输入获取（带提示）
     void printSeparator() const; // 打印分隔线（统一格式）
 };
-
 // --- 实现部分 ---
 void UserInterface::setController(SystemController* controller) {
     m_controller = controller;
 }
-
 /**
 * @brief 清除输入缓冲区
 */
@@ -2153,14 +2138,12 @@ void UserInterface::clearInputBuffer() const {
     std::cin.clear();
     std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 }
-
 /**
 * @brief 打印统一格式的分隔线
 */
 void UserInterface::printSeparator() const {
     std::print("===============================================\n");
 }
-
 /**
 * @brief 通用输入获取（带提示信息，处理空输入）
 * @param prompt 输入提示文本
@@ -2171,7 +2154,6 @@ std::string UserInterface::getInputWithPrompt(const std::string& prompt) const {
     while (true) {
         std::print("{}", prompt);
         std::getline(std::cin, input);
-
         // 清洗输入：去除首尾空格（修复 size_t 命名空间问题）
         std::size_t start = input.find_first_not_of(" \t\n\r");
         std::size_t end = input.find_last_not_of(" \t\n\r");
@@ -2180,7 +2162,6 @@ std::string UserInterface::getInputWithPrompt(const std::string& prompt) const {
             continue;
         }
         input = input.substr(start, end - start + 1);
-
         // 过滤非法字符（仅保留字母、数字、下划线、中文字符）
         std::string cleaned;
         for (char c : input) {
@@ -2196,7 +2177,6 @@ std::string UserInterface::getInputWithPrompt(const std::string& prompt) const {
         return cleaned;
     }
 }
-
 /**
 * @brief 显示角色选择菜单
 */
@@ -2220,7 +2200,6 @@ int UserInterface::showRoleSelectionMenu() const {
     }
     return role_choice;
 }
-
 /**
 * @brief 显示登录菜单（增强密码校验）
 */
@@ -2230,10 +2209,8 @@ std::string UserInterface::showLoginMenu() {
     printSeparator();
     std::print("========== 重庆师范大学选课系统 v5.0 ==========\n");
     printSeparator();
-
     // 获取用户ID
     user_id = getInputWithPrompt("请输入用户ID：");
-
     // 获取密码
     std::print("请输入密码：");
     // 密码输入隐藏（简单实现：关闭回显）
@@ -2246,10 +2223,9 @@ std::string UserInterface::showLoginMenu() {
     #ifdef _WIN32
         system("echo on");
     #else
-      std::system("stty -echo");
+      std::system("stty echo");
     #endif
     std::print("\n");
-
     // 调用登录接口验证（后端未实现时暂时跳过校验，避免编译报错）
     if (!m_controller) {
         std::print("⚠️  控制器未初始化，跳过密码校验\n");
@@ -2262,7 +2238,6 @@ std::string UserInterface::showLoginMenu() {
         //     return "";
         // }
     }
-
     std::print("✅ 登录成功！\n");
     int role = showRoleSelectionMenu();
     switch (role) {
@@ -2281,7 +2256,6 @@ std::string UserInterface::showLoginMenu() {
     }
     return user_id;
 }
-
 /**
 * @brief 显示学生主菜单（完成查看课表、查看成绩功能）
 */
@@ -2356,37 +2330,39 @@ void UserInterface::showStudentMenu(std::string_view studentId) {
             }
             case 4: {
                 std::print("\n--- 我的成绩 ---\n");
-                std::print("(功能开发中...)\n");
-                // 注释：后端 getMyGrades 接口实现后启用
-                // if (!m_controller) {
-                //     std::print("Error: System Controller not initialized.\n");
-                //     break;
-                // }
-                // auto grades = m_controller->getMyGrades();
-                // if (grades.empty()) {
-                //     std::print("📭 暂无已录入成绩的课程。\n");
-                // } else {
-                //     double totalCredit = 0.0;
-                //     double totalScoreCredit = 0.0;
-                //     std::print("{:<25} | {:<6} | {:<10}\n",
-                //               "课程名称", "学分", "成绩");
-                //     std::print("{:<25} | {:<6} | {:<10}\n",
-                //               "-------------------------", "------", "----------");
-                //     for (const auto& gradeItem : grades) {
-                //         std::string scoreStr = (gradeItem.score == -1) ? "N/A" : std::to_string(gradeItem.score);
-                //         std::print("{:<25} | {:<6.1f} | {:<10}\n",
-                //                   gradeItem.courseName.substr(0, 22) + (gradeItem.courseName.size() > 22 ? "..." : ""),
-                //                   gradeItem.credit,
-                //                   scoreStr);
-                //         if (gradeItem.score != -1) {
-                //             totalCredit += gradeItem.credit;
-                //             totalScoreCredit += gradeItem.credit * gradeItem.score;
-                //         }
-                //     }
-                //     std::print("\n{:<33} | {:.2f}\n",
-                //               "加权平均分（已录入成绩课程）：",
-                //               totalCredit > 0 ? (totalScoreCredit / totalCredit) : 0.0);
-                // }
+                if (!m_controller) {
+                    std::print("Error: System Controller not initialized.\n");
+                    break;
+                }
+                // 调用后端接口获取成绩
+                auto grades = m_controller->getMyGrades();
+                if (grades.empty()) {
+                    std::print("📭 暂无已选修课程或成绩未录入。\n");
+                } else {
+                    double totalCredit = 0.0;
+                    double totalScoreCredit = 0.0;
+                    // 格式化表格输出
+                    std::print("{:<25} | {:<6} | {:<10}\n",
+                              "课程名称", "学分", "成绩");
+                    std::print("{:<25} | {:<6} | {:<10}\n",
+                              "-------------------------", "------", "----------");
+                    for (const auto& gradeItem : grades) {
+                        std::string scoreStr = (gradeItem.score == -1) ? "N/A" : std::to_string(gradeItem.score);
+                        std::print("{:<25} | {:<6.1f} | {:<10}\n",
+                                  gradeItem.courseName.substr(0, 22) + (gradeItem.courseName.size() > 22 ? "..." : ""),
+                                  gradeItem.credit,
+                                  scoreStr);
+                        // 计算加权平均分（仅统计已录入成绩的课程）
+                        if (gradeItem.score != -1) {
+                            totalCredit += gradeItem.credit;
+                            totalScoreCredit += gradeItem.credit * gradeItem.score;
+                        }
+                    }
+                    // 显示加权平均分
+                    std::print("\n{:<33} | {:.2f}\n",
+                              "加权平均分（已录入成绩课程）：",
+                              totalCredit > 0 ? (totalScoreCredit / totalCredit) : 0.0);
+                }
                 break;
             }
             case 5:
@@ -2397,7 +2373,6 @@ void UserInterface::showStudentMenu(std::string_view studentId) {
         std::cin.get();
     }
 }
-
 /**
 * @brief 显示教师主菜单（完成查看授课名单功能）
 */
@@ -2518,7 +2493,6 @@ void UserInterface::showTeacherMenu(std::string_view teacherId) {
         std::cin.get();
     }
 }
-
 /**
 * @brief 显示教学秘书主菜单（完成分配教师、设置上课时间功能）
 */
