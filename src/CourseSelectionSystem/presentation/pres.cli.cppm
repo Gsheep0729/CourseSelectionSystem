@@ -24,12 +24,14 @@
 * * 增强登录认证流程，添加密码校验
 * * 消除所有功能占位符，完成视图与后端接口的全链路串联
 * * 修复编译报错：size_t 命名空间问题、createCourse 参数不匹配问题
+* [v5.0.1] Zhang Tao 2026-01-17
+* * 完善学生端「查看成绩」功能，调用 getMyGrades 接口实现完整展示
 */
 export module presentation;
 import application;
 import domain;
+import infrastructure;
 import std;
-
 // --- 类声明 ---
 export class UserInterface {
 public:
@@ -45,12 +47,10 @@ private:
     std::string getInputWithPrompt(const std::string& prompt) const; // 通用输入获取（带提示）
     void printSeparator() const; // 打印分隔线（统一格式）
 };
-
 // --- 实现部分 ---
 void UserInterface::setController(SystemController* controller) {
     m_controller = controller;
 }
-
 /**
 * @brief 清除输入缓冲区
 */
@@ -58,14 +58,12 @@ void UserInterface::clearInputBuffer() const {
     std::cin.clear();
     std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 }
-
 /**
 * @brief 打印统一格式的分隔线
 */
 void UserInterface::printSeparator() const {
     std::print("===============================================\n");
 }
-
 /**
 * @brief 通用输入获取（带提示信息，处理空输入）
 * @param prompt 输入提示文本
@@ -76,7 +74,6 @@ std::string UserInterface::getInputWithPrompt(const std::string& prompt) const {
     while (true) {
         std::print("{}", prompt);
         std::getline(std::cin, input);
-
         // 清洗输入：去除首尾空格（修复 size_t 命名空间问题）
         std::size_t start = input.find_first_not_of(" \t\n\r");
         std::size_t end = input.find_last_not_of(" \t\n\r");
@@ -85,7 +82,6 @@ std::string UserInterface::getInputWithPrompt(const std::string& prompt) const {
             continue;
         }
         input = input.substr(start, end - start + 1);
-
         // 过滤非法字符（仅保留字母、数字、下划线、中文字符）
         std::string cleaned;
         for (char c : input) {
@@ -101,7 +97,6 @@ std::string UserInterface::getInputWithPrompt(const std::string& prompt) const {
         return cleaned;
     }
 }
-
 /**
 * @brief 显示角色选择菜单
 */
@@ -125,7 +120,6 @@ int UserInterface::showRoleSelectionMenu() const {
     }
     return role_choice;
 }
-
 /**
 * @brief 显示登录菜单（增强密码校验）
 */
@@ -135,10 +129,8 @@ std::string UserInterface::showLoginMenu() {
     printSeparator();
     std::print("========== 重庆师范大学选课系统 v5.0 ==========\n");
     printSeparator();
-
     // 获取用户ID
     user_id = getInputWithPrompt("请输入用户ID：");
-
     // 获取密码
     std::print("请输入密码：");
     // 密码输入隐藏（简单实现：关闭回显）
@@ -151,10 +143,9 @@ std::string UserInterface::showLoginMenu() {
     #ifdef _WIN32
         system("echo on");
     #else
-      std::system("stty -echo");
+      std::system("stty echo");
     #endif
     std::print("\n");
-
     // 调用登录接口验证（后端未实现时暂时跳过校验，避免编译报错）
     if (!m_controller) {
         std::print("⚠️  控制器未初始化，跳过密码校验\n");
@@ -167,7 +158,6 @@ std::string UserInterface::showLoginMenu() {
         //     return "";
         // }
     }
-
     std::print("✅ 登录成功！\n");
     int role = showRoleSelectionMenu();
     switch (role) {
@@ -186,7 +176,6 @@ std::string UserInterface::showLoginMenu() {
     }
     return user_id;
 }
-
 /**
 * @brief 显示学生主菜单（完成查看课表、查看成绩功能）
 */
@@ -261,37 +250,39 @@ void UserInterface::showStudentMenu(std::string_view studentId) {
             }
             case 4: {
                 std::print("\n--- 我的成绩 ---\n");
-                std::print("(功能开发中...)\n");
-                // 注释：后端 getMyGrades 接口实现后启用
-                // if (!m_controller) {
-                //     std::print("Error: System Controller not initialized.\n");
-                //     break;
-                // }
-                // auto grades = m_controller->getMyGrades();
-                // if (grades.empty()) {
-                //     std::print("📭 暂无已录入成绩的课程。\n");
-                // } else {
-                //     double totalCredit = 0.0;
-                //     double totalScoreCredit = 0.0;
-                //     std::print("{:<25} | {:<6} | {:<10}\n",
-                //               "课程名称", "学分", "成绩");
-                //     std::print("{:<25} | {:<6} | {:<10}\n",
-                //               "-------------------------", "------", "----------");
-                //     for (const auto& gradeItem : grades) {
-                //         std::string scoreStr = (gradeItem.score == -1) ? "N/A" : std::to_string(gradeItem.score);
-                //         std::print("{:<25} | {:<6.1f} | {:<10}\n",
-                //                   gradeItem.courseName.substr(0, 22) + (gradeItem.courseName.size() > 22 ? "..." : ""),
-                //                   gradeItem.credit,
-                //                   scoreStr);
-                //         if (gradeItem.score != -1) {
-                //             totalCredit += gradeItem.credit;
-                //             totalScoreCredit += gradeItem.credit * gradeItem.score;
-                //         }
-                //     }
-                //     std::print("\n{:<33} | {:.2f}\n",
-                //               "加权平均分（已录入成绩课程）：",
-                //               totalCredit > 0 ? (totalScoreCredit / totalCredit) : 0.0);
-                // }
+                if (!m_controller) {
+                    std::print("Error: System Controller not initialized.\n");
+                    break;
+                }
+                // 调用后端接口获取成绩
+                auto grades = m_controller->getMyGrades();
+                if (grades.empty()) {
+                    std::print("📭 暂无已选修课程或成绩未录入。\n");
+                } else {
+                    double totalCredit = 0.0;
+                    double totalScoreCredit = 0.0;
+                    // 格式化表格输出
+                    std::print("{:<25} | {:<6} | {:<10}\n",
+                              "课程名称", "学分", "成绩");
+                    std::print("{:<25} | {:<6} | {:<10}\n",
+                              "-------------------------", "------", "----------");
+                    for (const auto& gradeItem : grades) {
+                        std::string scoreStr = (gradeItem.score == -1) ? "N/A" : std::to_string(gradeItem.score);
+                        std::print("{:<25} | {:<6.1f} | {:<10}\n",
+                                  gradeItem.courseName.substr(0, 22) + (gradeItem.courseName.size() > 22 ? "..." : ""),
+                                  gradeItem.credit,
+                                  scoreStr);
+                        // 计算加权平均分（仅统计已录入成绩的课程）
+                        if (gradeItem.score != -1) {
+                            totalCredit += gradeItem.credit;
+                            totalScoreCredit += gradeItem.credit * gradeItem.score;
+                        }
+                    }
+                    // 显示加权平均分
+                    std::print("\n{:<33} | {:.2f}\n",
+                              "加权平均分（已录入成绩课程）：",
+                              totalCredit > 0 ? (totalScoreCredit / totalCredit) : 0.0);
+                }
                 break;
             }
             case 5:
@@ -302,7 +293,6 @@ void UserInterface::showStudentMenu(std::string_view studentId) {
         std::cin.get();
     }
 }
-
 /**
 * @brief 显示教师主菜单（完成查看授课名单功能）
 */
@@ -423,7 +413,6 @@ void UserInterface::showTeacherMenu(std::string_view teacherId) {
         std::cin.get();
     }
 }
-
 /**
 * @brief 显示教学秘书主菜单（完成分配教师、设置上课时间功能）
 */
