@@ -44,6 +44,9 @@
 * * 新增 setCourseTimeSlot 接口，支持教学秘书修改课程时间槽
 * * 新增 getCourseById 接口，封装数据库访问，避免外部直接访问私有成员 m_db
 * * 补充 updateGrade 接口实现，支持教师录入/修改成绩
+* [v5.5] GY 2026-01-18
+* * 新增 removeCourse 和 unassignTeacher 接口，支持课程与教师的解绑管理
+* * 重构业务方法以调用 Proxy 静态接口，移除 Controller 内冗余 SQL
 */
 export module application;
 import domain;
@@ -74,7 +77,9 @@ public:
     // 教学秘书功能
     bool createCourse(std::string id, std::string name, int capacity, double credit,
                       std::string teacherId, std::string teacherName, int weekday, int timeslot); // 创建新课程
+    bool removeCourse(std::string courseId); // 新增：删除课程
     bool assignTeacherToCourse(std::string courseId, std::string teacherId, std::string teacherName); // 为课程分配教师
+    bool unassignTeacher(std::string courseId); // 新增：解绑教师
     bool setCourseTimeSlot(std::string courseId, int weekday, int timeslot); // 新增：修改课程时间槽
 
     // 教师功能
@@ -362,15 +367,6 @@ void SystemController::performDrop(std::string sid, std::string cid) {
 
 /**
  * @brief 创建新课程 (仅教学秘书可用)
- * @param id 课程ID
- * @param name 课程名称
- * @param capacity 课程容量
- * @param credit 课程学分
- * @param teacherId 授课教师ID
- * @param teacherName 授课教师姓名
- * @param weekday 上课星期 (1-7, 0=无固定时间)
- * @param timeslot 上课节次
- * @return 创建成功返回true，否则返回false
  */
 bool SystemController::createCourse(std::string id, std::string name, int capacity, double credit,
                                     std::string teacherId, std::string teacherName, int weekday, int timeslot) {
@@ -387,13 +383,9 @@ bool SystemController::createCourse(std::string id, std::string name, int capaci
         return false;
     }
 
-    // 执行创建
-    std::string sql = std::format(
-        "INSERT INTO course VALUES ('{}', '{}', {}, 0, {}, '{}', '{}', {}, {})",
-        id, name, capacity, credit, teacherId, teacherName, weekday, timeslot
-    );
-
-    if (m_db->execute(sql)) {
+    // 构造课程对象并调用 Proxy 持久化
+    Course newCourse(id, name, capacity, 0, credit, teacherId, teacherName, Timeslot(weekday, timeslot));
+    if (infra::CourseProxy::addCourse(*m_db, newCourse)) {
         // 自动为教师创建账号 (如果不存在)
         m_db->execute(std::format(
             "INSERT INTO users (user_id, name, password, role) VALUES ('{}', '{}', '123', 'teacher') ON CONFLICT (user_id) DO NOTHING",
@@ -409,11 +401,18 @@ bool SystemController::createCourse(std::string id, std::string name, int capaci
 }
 
 /**
+ * @brief 删除课程 (仅教学秘书可用)
+ */
+bool SystemController::removeCourse(std::string courseId) {
+    if (!m_currentUser.isValid() || m_currentUser.role != "secretary") {
+        std::print("Error: Only secretary can remove courses.\n");
+        return false;
+    }
+    return infra::CourseProxy::deleteCourse(*m_db, courseId);
+}
+
+/**
  * @brief 为课程分配教师 (仅教学秘书可用)
- * @param courseId 课程ID
- * @param teacherId 教师ID
- * @param teacherName 教师姓名
- * @return 分配成功返回true，否则返回false
  */
 bool SystemController::assignTeacherToCourse(std::string courseId, std::string teacherId, std::string teacherName) {
     // 权限检查
@@ -422,32 +421,32 @@ bool SystemController::assignTeacherToCourse(std::string courseId, std::string t
         return false;
     }
 
-    // 检查课程是否存在
-    auto course = infra::CourseProxy::findCourseById(*m_db, courseId);
-    if (!course) {
-        std::print("Error: Course {} not found.\n", courseId);
-        return false;
-    }
-
     // 执行更新
-    std::string sql = std::format(
-        "UPDATE course SET teacher_id = '{}', teacher_name = '{}' WHERE id = '{}'",
-        teacherId, teacherName, courseId
-    );
-
-    if (m_db->execute(sql)) {
-        // 自动为教师创建账号 (如果不存在)
+    if (infra::CourseProxy::updateTeacher(*m_db, courseId, teacherId, teacherName)) {
+        // 自动为教师创建账号
         m_db->execute(std::format(
             "INSERT INTO users (user_id, name, password, role) VALUES ('{}', '{}', '123', 'teacher') ON CONFLICT (user_id) DO NOTHING",
             teacherId, teacherName
         ));
-
-        std::print("Teacher {} assigned to course {} successfully!\n", teacherName, course->getName());
+        std::print("Teacher {} assigned to course {} successfully!\n", teacherName, courseId);
         return true;
-    } else {
-        std::print("Error: Failed to assign teacher to course {}\n", courseId);
+    }
+    return false;
+}
+
+/**
+ * @brief 解绑教师 (仅教学秘书可用)
+ */
+bool SystemController::unassignTeacher(std::string courseId) {
+    if (!m_currentUser.isValid() || m_currentUser.role != "secretary") {
+        std::print("Error: Only secretary can unassign teachers.\n");
         return false;
     }
+    if (infra::CourseProxy::updateTeacher(*m_db, courseId, "", "未分配")) {
+        std::print("Teacher unassigned from course {} successfully!\n", courseId);
+        return true;
+    }
+    return false;
 }
 
 /**

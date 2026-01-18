@@ -20,6 +20,8 @@
 * * 将内部 StudentDTO 重命名为 CourseStudentDTO 解决命名冲突
 * [v5.0.2] Zhang Tao 2026-01-17
 * * 新增 updateTeacher 方法，支持更新课程的教师信息
+* [v5.5] GY 2026-01-18
+* * 实现 deleteCourse 方法，增加针对选课记录的关联检查
 */
 export module infrastructure:course_proxy;
 import domain;
@@ -38,10 +40,28 @@ public:
     static bool addCourse(db::DBAdapter& db, const Course& course); // 将新课程持久化到数据库
     static std::vector<CourseStudentDTO> findStudentsByCourse(db::DBAdapter& db, std::string_view courseId); // 查询某课程的选课学生
     static bool updateTeacher(db::DBAdapter& db, const std::string& courseId, const std::string& teacherId, const std::string& teacherName); // 更新课程的教师信息
+    static bool deleteCourse(db::DBAdapter& db, std::string_view courseId); // 删除课程
 };
 } // namespace infra
 // --- Implementation ---
 namespace infra {
+/**
+ * @brief 删除课程（包含前置检查）
+ */
+bool CourseProxy::deleteCourse(db::DBAdapter& db, std::string_view courseId) {
+    // 1. 检查是否有选课记录（防止级联删除导致数据丢失）
+    std::string checkSql = std::format("SELECT COUNT(*) FROM enrollment WHERE course_id = '{}'", courseId);
+    auto res = db.query(checkSql);
+    if (res && !res->empty()) {
+        if (std::stoi((*res)[0][0]) > 0) {
+            std::print("❌ 删除失败：课程 '{}' 已有学生选修，请先处理选课记录。\n", courseId);
+            return false;
+        }
+    }
+    // 2. 执行删除
+    std::string sql = std::format("DELETE FROM course WHERE id = '{}'", courseId);
+    return db.execute(sql);
+}
 std::vector<CourseStudentDTO> CourseProxy::findStudentsByCourse(db::DBAdapter& db, std::string_view courseId) {
     std::vector<CourseStudentDTO> students;
     // 关联查询 enrollment 和 student 表
