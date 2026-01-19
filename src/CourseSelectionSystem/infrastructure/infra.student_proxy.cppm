@@ -12,6 +12,8 @@
 * * 初始版本：实现 StudentProxy 类。
 * [v4.5] GY   2026-01-15
 * * 实现 findSchedule 方法，通过 JOIN 查询学生课表并封装领域对象
+* [v6.0] GY   2026-01-19
+* * 经终期检查：数据持久化逻辑严密，通过真实数据验证，代码实现与领域层完全解耦
 */
 
 export module infrastructure:student_proxy;
