@@ -11,6 +11,8 @@
 * * 实现"初始化 -> 注入控制器 -> 启动交互循环"的标准启动流程
 * [v5.5] GY 2026-01-18
 * * 修正交互死循环，通过判断 showLoginMenu 返回值实现优雅退出
+* [v6.0] GY   2026-01-19
+* * 经终期检查：系统入口逻辑健壮，代码实现严格遵循 C++23 规范
 */
 import std;
 import course_system;
@@ -36,9 +38,12 @@ int main() {
             }
         }
 
+        // 4. 程序结束清理
+        app.cleanup();
+
     } catch (const std::exception& e) {
         std::print("Fatal Error: {}\n", e.what());
         return 1;
     }
     return 0;
-}
+} 

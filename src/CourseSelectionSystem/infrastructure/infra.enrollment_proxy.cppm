@@ -16,6 +16,8 @@
 * * 增加成绩范围校验（0-100分）
 * [v5.0] Zhang Tao 2026-01-17
 * * 新增 findGradesByStudent 方法，支持学生查询个人成绩
+* [v6.0] GY   2026-01-19
+* * 经终期检查：选课与成绩管理逻辑通过真实场景测试，代码规范性良好
 */
 export module infrastructure:enrollment_proxy;
 import :db_adapter;

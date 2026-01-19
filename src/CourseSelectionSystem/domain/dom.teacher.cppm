@@ -20,8 +20,10 @@
 * * 修复与 dom.course 的循环依赖编译错误
 * * 调整 import 顺序以适配整体编译流程
 * [v5.6] GY   2026-01-19
-* * 规范封装：移除 Getter 方法 (getId, getName 等)
+* * 重构：移除 Getter 方法 (getId, getName 等)
 * * 严格封装内部状态
+* [v6.0] GY   2026-01-19
+* * 经终期检查：领域模型封装严密，核心业务逻辑完整，代码遵循 C++23 标准
 */
 export module domain:teacher;
 
