@@ -24,6 +24,8 @@
 * * 实现 deleteCourse 方法，增加针对选课记录的关联检查
 * [v5.6] GY   2026-01-19
 * * 规范封装：使用 transferData 替代 Getter 进行持久化操作
+* [v5.7] GY   2026-01-19
+* * 新增 hasTeacherTimeConflict 方法，用于创建课程时的教师时间冲突检测
 */
 export module infrastructure:course_proxy;
 import domain;
@@ -43,10 +45,34 @@ public:
     static std::vector<CourseStudentDTO> findStudentsByCourse(db::DBAdapter& db, std::string_view courseId); // 查询某课程的选课学生
     static bool updateTeacher(db::DBAdapter& db, const std::string& courseId, const std::string& teacherId, const std::string& teacherName); // 更新课程的教师信息
     static bool deleteCourse(db::DBAdapter& db, std::string_view courseId); // 删除课程
+    static bool hasTeacherTimeConflict(db::DBAdapter& db, std::string_view teacherId, int weekday, int timeslot); // 检查教师时间冲突
 };
 } // namespace infra
 // --- Implementation ---
 namespace infra {
+/**
+ * @brief 检查教师是否存在时间冲突
+ * @param db 数据库适配器
+ * @param teacherId 教师ID
+ * @param weekday 星期
+ * @param timeslot 节次
+ * @return true 如果存在冲突，否则 false
+ */
+bool CourseProxy::hasTeacherTimeConflict(db::DBAdapter& db, std::string_view teacherId, int weekday, int timeslot) {
+    // 忽略网络课 (weekday=0)
+    if (weekday == 0) return false;
+
+    std::string sql = std::format(
+        "SELECT COUNT(*) FROM course WHERE teacher_id = '{}' AND weekday = {} AND timeslot = {}",
+        teacherId, weekday, timeslot
+    );
+    
+    auto res = db.query(sql);
+    if (res && !res->empty()) {
+        return std::stoi((*res)[0][0]) > 0;
+    }
+    return false;
+}
 /**
  * @brief 删除课程（包含前置检查）
  */

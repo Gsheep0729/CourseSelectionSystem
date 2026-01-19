@@ -50,6 +50,8 @@
 * [v5.6] GY   2026-01-19
 * * 重构：重命名查询方法 (移除 'get' 前缀)
 * * 分离函数声明与实现
+* [v5.7] GY   2026-01-19
+* * 修复 Bug：在创建课程时增加教师时间冲突检测
 */
 export module application;
 import domain;
@@ -365,6 +367,12 @@ bool SystemController::createCourse(std::string id, std::string name, int capaci
     auto existingCourse = infra::CourseProxy::findCourseById(*m_db, id);
     if (existingCourse) {
         std::print("Error: Course ID {} already exists.\n", id);
+        return false;
+    }
+
+    // 检查教师时间冲突
+    if (infra::CourseProxy::hasTeacherTimeConflict(*m_db, teacherId, weekday, timeslot)) {
+        std::print("Error: Teacher {} already has a course at Weekday {} Slot {}.\n", teacherName, weekday, timeslot);
         return false;
     }
 
