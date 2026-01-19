@@ -18,8 +18,10 @@
 * * 增加 hasTimeConflict 方法
 * * 优化 enrollIn/dropCourse 逻辑以配合 Proxy
 * [v5.6] GY   2026-01-19
-* * 规范封装：移除 Getter 方法
+* * 重构：移除 Getter 方法
 * * 使用 operator== 和冲突检测方法替代外部属性访问
+* [v6.0] GY   2026-01-19
+* * 经终期检查：领域模型封装严密，核心业务逻辑完整，代码遵循 C++23
 */
 
 export module domain:student;

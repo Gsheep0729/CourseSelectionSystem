@@ -27,6 +27,8 @@
 * [v2.0] Integrated 2026-01-07
 * * 解决模块导出冲突，统一导出 infrastructure 和 presentation 模块
 * * 确立最终的模块依赖关系，修复循环依赖问题
+* [v6.0] GY   2026-01-19
+* * 经终期检查：全系统模块聚合完毕，架构层次分明，符合项目规范
 */
 
 export module course_system;

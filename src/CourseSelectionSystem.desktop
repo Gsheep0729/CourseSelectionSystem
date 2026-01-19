@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Course Selection System
+Name[zh_CN]=选课管理系统
+Comment=Advanced Course Selection System based on C++23
+Exec=/root/CourseSelectionSystem/CourseSelectionSystem/src/CourseSelectionSystem/build/CourseSelectionSystem
+Path=/root/CourseSelectionSystem/CourseSelectionSystem/src/CourseSelectionSystem/build/
+Icon=/CQNU.png
+Terminal=true
+Categories=Education;Development;ConsoleOnly;

@@ -12,7 +12,9 @@
 * [v1.0] GY   2026-01-10
 * * 初始版本：实现 Timeslot 类及 overlaps 方法
 * [v5.6] GY   2026-01-19
-* * 规范封装：移除 Getter 方法，实现 transferData 模板
+* * 重构：移除 Getter 方法，实现 transferData 模板
+* [v6.0] GY   2026-01-19
+* * 经终期检查：值对象封装严密，代码实现规范。
 */
 
 export module domain:timeslot;

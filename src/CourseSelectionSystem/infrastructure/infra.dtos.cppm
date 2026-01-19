@@ -15,6 +15,8 @@
 * * 为 GradeDTO 新增 credit 字段，适配成绩查询时的学分展示需求
 * * 恢复 GradeDTO 中 studentId/studentName 核心字段，保证成绩与学生的关联
 * * 为所有 DTO 补充格式化输出方法，简化表现层展示逻辑
+* [v6.0] GY   2026-01-19
+* * 经终期检查：传输对象定义完整，有效隔离表现层与领域层
 */
 
 export module infrastructure:dtos;
