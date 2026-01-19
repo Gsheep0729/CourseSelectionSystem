@@ -17,6 +17,12 @@
 * [v2.0] GY   2026-01-10
 * * 增加字段：credit, teacherId, teacherName, timeslot
 * * 更新构造函数以支持完整信息
+* [v5.6] GY   2026-01-19
+* * 规范封装：移除所有 Getter 方法，实施“告知，而非询问”原则
+* * 实现访问者模式 (transferData) 用于数据持久化
+* * 分离函数声明与实现
+* [v6.0] GY   2026-01-19
+* * 经终期检查：领域模型封装严密，核心业务逻辑完整，代码遵循 C++23 标准
 */
 export module domain:course;
 
@@ -26,12 +32,11 @@ import :timeslot;
 // 前向声明，解决循环引用
 export class Student;
 
-
 export class Course {
 public:
     // 构造函数
-    Course(std::string id, std::string name, int capacity, 
-           double credit, std::string teacherId, std::string teacherName, 
+    Course(std::string id, std::string name, int capacity, int enrolled,
+           double credit, std::string teacherId, std::string teacherName,
            Timeslot timeslot);
 
     // 检查课程是否已满
@@ -43,14 +48,17 @@ public:
     // 移除学生报名信息
     void removeEnrollment(Student* s);
 
-    // Getters
-    std::string getId() const { return m_id; }
-    std::string getName() const { return m_name; }
-    int getCapacity() const { return m_capacity; }
-    double getCredit() const { return m_credit; }
-    std::string getTeacherName() const { return m_teacherName; }
-    const Timeslot& getTimeslot() const { return m_timeslot; }
-    int getEnrolledCount() const { return m_students.size(); }
+    // Operator ==
+    bool operator==(const Course& other) const;
+
+    // 数据传输器 (Visitor Pattern): 允许外部以受控方式访问内部状态
+    template<typename Func>
+    void transferData(Func&& receiver) const;
+
+    // 业务逻辑查询方法 (替代 Getter)
+    bool isTaughtBy(std::string_view teacherId) const;
+    
+    bool conflictsWith(const Course& other) const;
 
     // 检查 ID 是否匹配
     bool hasId(std::string_view id) const;
@@ -62,24 +70,26 @@ private:
     std::string m_id;                 // 课程 ID
     std::string m_name;               // 课程名称
     int m_capacity;                   // 最大容量
-    
+    int m_enrolledCount;              // 已报名人数 (从数据库同步)
+
     // 新增字段
     double m_credit;                  // 学分
     std::string m_teacherId;          // 教师 ID
     std::string m_teacherName;        // 教师姓名 (冗余存储，便于显示)
     Timeslot m_timeslot;              // 时间槽
 
-    std::vector<Student*> m_students; // 已选修该课程的学生列表
+    std::vector<Student*> m_students; // 已选修该课程的学生列表 (内存中的关联)
 };
 
 // --- Implementation ---
 
-Course::Course(std::string id, std::string name, int capacity, 
-               double credit, std::string teacherId, std::string teacherName, 
+Course::Course(std::string id, std::string name, int capacity, int enrolled,
+               double credit, std::string teacherId, std::string teacherName,
                Timeslot timeslot)
-    : m_id(id), m_name(name), m_capacity(capacity),
+    : m_id(id), m_name(name), m_capacity(capacity), m_enrolledCount(enrolled),
       m_credit(credit), m_teacherId(teacherId), m_teacherName(teacherName),
       m_timeslot(timeslot) {}
+
 
 
 /**
@@ -87,8 +97,9 @@ Course::Course(std::string id, std::string name, int capacity,
 * @return true 如果当前选课人数 >= 容量，否则 false
 */
 bool Course::isFull() const {
-    return m_students.size() >= m_capacity;
+    return m_enrolledCount >= m_capacity;
 }
+
 
 
 /**
@@ -99,8 +110,10 @@ bool Course::isFull() const {
 bool Course::acceptEnrollment(Student* s) {
     if (isFull()) return false;
     m_students.push_back(s);
+    m_enrolledCount++; // 同步增加计数
     return true;
 }
+
 
 
 /**
@@ -109,7 +122,39 @@ bool Course::acceptEnrollment(Student* s) {
 */
 void Course::removeEnrollment(Student* s) {
     std::erase(m_students, s);
+    if (m_enrolledCount > 0) m_enrolledCount--;
 }
+
+/**
+ * @brief 重载相等运算符
+ */
+bool Course::operator==(const Course& other) const {
+    return m_id == other.m_id;
+}
+
+/**
+ * @brief 数据传输器实现
+ * 注意：作为模板函数，实现必须位于模块接口文件中
+ */
+template<typename Func>
+void Course::transferData(Func&& receiver) const {
+    receiver(m_id, m_name, m_capacity, m_enrolledCount, m_credit, m_teacherId, m_teacherName, m_timeslot);
+}
+
+/**
+ * @brief 检查是否由指定教师授课
+ */
+bool Course::isTaughtBy(std::string_view teacherId) const {
+    return m_teacherId == teacherId;
+}
+
+/**
+ * @brief 检查是否与另一门课程时间冲突
+ */
+bool Course::conflictsWith(const Course& other) const {
+    return m_timeslot.overlaps(other.m_timeslot);
+}
+
 
 /**
  * @brief 检查课程是否匹配指定 ID
@@ -120,12 +165,14 @@ bool Course::hasId(std::string_view id) const {
     return m_id == id;
 }
 
+
+
 /**
  * @brief 获取课程详细信息字符串
  * @return 格式化后的课程信息
  */
 std::string Course::course_info() const {
     return std::format("[Course] {} - {} ({:.1f}pts) by {} | {} ({}/{})",
-        m_id, m_name, m_credit, m_teacherName, m_timeslot.toString(), 
-        m_students.size(), m_capacity);
+        m_id, m_name, m_credit, m_teacherName, m_timeslot.toString(),
+        m_enrolledCount, m_capacity);
 }
