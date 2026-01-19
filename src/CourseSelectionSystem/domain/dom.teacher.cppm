@@ -19,6 +19,9 @@
 * [v2.0] GY 2026-01-10
 * * 修复与 dom.course 的循环依赖编译错误
 * * 调整 import 顺序以适配整体编译流程
+* [v5.6] GY   2026-01-19
+* * 规范封装：移除 Getter 方法 (getId, getName 等)
+* * 严格封装内部状态
 */
 export module domain:teacher;
 
@@ -35,20 +38,11 @@ public:
    // ID匹配检查：判断输入ID是否与教师ID一致
    bool hasId(std::string_view id) const;
 
-   // 获取教师ID（只读）
-   std::string getId() const;
-
-   // 获取教师姓名（只读）
-   std::string getName() const;
-
    // 添加授课课程：将课程加入教师的授课列表（避免重复添加）
    void addTeachingCourse(Course* course);
 
    // 移除授课课程：将课程从教师的授课列表中移除
    void removeTeachingCourse(Course* course);
-
-   // 获取授课课程列表：返回当前教师的所有授课课程
-   std::vector<Course*> getTeachingCourses() const;
 
    // 录入/修改成绩：仅允许为本人授课课程的学生打分（含权限与成绩范围校验）
    // @param course 目标课程（需为教师授课课程）
@@ -87,26 +81,6 @@ Teacher::Teacher(std::string id, std::string name)
 */
 bool Teacher::hasId(std::string_view id) const {
    return m_id == id;
-}
-
-
-
-/**
-* @brief 获取教师ID
-* @return 教师ID字符串
-*/
-std::string Teacher::getId() const {
-   return m_id;
-}
-
-
-
-/**
-* @brief 获取教师姓名
-* @return 教师姓名字符串
-*/
-std::string Teacher::getName() const {
-   return m_name;
 }
 
 
@@ -155,16 +129,6 @@ void Teacher::removeTeachingCourse(Course* course) {
    } else {
        std::print("Error: Teacher {} is not teaching {}.\n", m_name, course->course_info());
    }
-}
-
-
-
-/**
-* @brief 获取当前教师的所有授课课程列表
-* @return 授课课程指针向量（只读）
-*/
-std::vector<Course*> Teacher::getTeachingCourses() const {
-   return m_teachingCourses;
 }
 
 

@@ -40,13 +40,16 @@
 * * 新增 getMyGrades 接口，支持学生查询个人成绩
 * [v5.0.2] Zhang Tao 2026-01-17
 * * 新增 assignTeacherToCourse 接口，支持教学秘书为课程分配教师
-* [v5.1] Integrated 2026-01-18
+* [v5.1] GY 2026-01-18
 * * 新增 setCourseTimeSlot 接口，支持教学秘书修改课程时间槽
 * * 新增 getCourseById 接口，封装数据库访问，避免外部直接访问私有成员 m_db
 * * 补充 updateGrade 接口实现，支持教师录入/修改成绩
 * [v5.5] GY 2026-01-18
 * * 新增 removeCourse 和 unassignTeacher 接口，支持课程与教师的解绑管理
 * * 重构业务方法以调用 Proxy 静态接口，移除 Controller 内冗余 SQL
+* [v5.6] GY   2026-01-19
+* * 重构：重命名查询方法 (移除 'get' 前缀)
+* * 分离函数声明与实现
 */
 export module application;
 import domain;
@@ -68,7 +71,7 @@ public:
 
     // 用户认证
     bool login(std::string id, std::string password);
-    User getCurrentUser() const { return m_currentUser; }
+    User sessionUser() const { return m_currentUser; }
 
     // 核心业务功能
     void performEnrollment(std::string sid, std::string cid); // 执行选课业务逻辑
@@ -87,35 +90,19 @@ public:
 
     // --- 数据查询接口 (供 UI 调用) ---
     // 获取当前登录学生的课表
-    std::vector<Course> getMySchedule() {
-        if (!m_currentUser.isValid() || m_currentUser.role != "student") return {};
-        return infra::StudentProxy::findSchedule(*m_db, m_currentUser.id);
-    }
+    std::vector<Course> queryMySchedule();
 
     // 获取当前登录学生的成绩
-    std::vector<infra::GradeDTO> getMyGrades() {
-        if (!m_currentUser.isValid() || m_currentUser.role != "student") return {};
-        return infra::EnrollmentProxy::findGradesByStudent(*m_db, m_currentUser.id);
-    }
+    std::vector<infra::GradeDTO> queryMyGrades();
 
     // 获取某门课程的学生名单 (仅教师/管理员可用)
-    std::vector<infra::CourseStudentDTO> getCourseStudentList(std::string courseId) {
-        // 简单权限校验
-        if (!m_currentUser.isValid()) return {};
-        if (m_currentUser.role == "student") return {}; // 学生不可见
-        return infra::CourseProxy::findStudentsByCourse(*m_db, courseId);
-    }
+    std::vector<infra::CourseStudentDTO> queryCourseStudentList(std::string courseId);
 
     // 获取所有课程列表 (公共查询)
-    std::vector<std::unique_ptr<Course>> getAllCourses() {
-        return infra::CourseProxy::findAllCourses(*m_db);
-    }
+    std::vector<std::unique_ptr<Course>> queryAllCourses();
 
     // 新增：根据课程ID获取课程对象 (封装数据库访问，避免外部访问m_db)
-    std::unique_ptr<Course> getCourseById(std::string courseId) {
-        if (!m_currentUser.isValid()) return nullptr;
-        return infra::CourseProxy::findCourseById(*m_db, courseId);
-    }
+    std::unique_ptr<Course> findCourseById(std::string courseId);
 
 private:
     std::unique_ptr<db::DBAdapter> m_db; // 数据库适配器指针
@@ -299,19 +286,19 @@ void SystemController::performEnrollment(std::string sid, std::string cid) {
     // 3. 执行业务规则校验
     // 3.1 检查是否已选
     if (student->isEnrolled(course.get())) {
-        std::print("Error: Already enrolled in {}\n", course->getName());
+        std::print("Error: Already enrolled in {}\n", course->course_info());
         return;
     }
 
     // 3.2 检查容量
     if (course->isFull()) {
-        std::print("Error: Course {} is full.\n", course->getName());
+        std::print("Error: Course is full: {}\n", course->course_info());
         return;
     }
 
     // 3.3 检查时间冲突
     if (student->hasTimeConflict(course.get())) {
-        std::print("Error: Time conflict detected for course {}\n", course->getName());
+        std::print("Error: Time conflict detected for course {}\n", course->course_info());
         return;
     }
 
@@ -319,8 +306,7 @@ void SystemController::performEnrollment(std::string sid, std::string cid) {
     if (infra::StudentProxy::saveEnrollment(*m_db, sid, cid)) {
         // 重要：重新加载以显示更新后的人数
         auto updatedCourse = infra::CourseProxy::findCourseById(*m_db, cid);
-        std::print("Enrollment successful! Course {} now has {} students.\n",
-                   updatedCourse->getName(), updatedCourse->getEnrolledCount());
+        std::print("Enrollment successful! {}\n", updatedCourse->course_info());
     } else {
         std::print("Error: Failed to save enrollment to database.\n");
     }
@@ -358,8 +344,7 @@ void SystemController::performDrop(std::string sid, std::string cid) {
     if (infra::StudentProxy::removeEnrollment(*m_db, sid, cid)) {
         // 重新加载课程以显示更新后的人数
         auto updatedCourse = infra::CourseProxy::findCourseById(*m_db, cid);
-        std::print("Drop successful! Course {} now has {} students.\n",
-                   updatedCourse->getName(), updatedCourse->getEnrolledCount());
+        std::print("Drop successful! {}\n", updatedCourse->course_info());
     } else {
         std::print("Error: Failed to drop course from database.\n");
     }
@@ -488,8 +473,7 @@ bool SystemController::setCourseTimeSlot(std::string courseId, int weekday, int 
     );
 
     if (m_db->execute(sql)) {
-        std::print("Course {} timeslot updated to {} (weekday: {}, slot: {})!\n",
-                   course->getName(), Timeslot(weekday, timeslot).toString(), weekday, timeslot);
+        std::print("Course timeslot updated: {}\n", course->course_info());
         return true;
     } else {
         std::print("Error: Failed to update timeslot for course {}\n", courseId);
@@ -524,7 +508,7 @@ bool SystemController::updateGrade(std::string sid, std::string cid, int score) 
         return false;
     }
 
-    if (course->getTeacherId() != m_currentUser.id) {
+    if (!course->isTaughtBy(m_currentUser.id)) {
         std::print("Error: You are not the teacher of course {}.\n", cid);
         return false;
     }
@@ -549,4 +533,37 @@ bool SystemController::updateGrade(std::string sid, std::string cid, int score) 
         std::print("Error: Failed to update grade for student {} in course {}\n", sid, cid);
         return false;
     }
+}
+
+// --- Query Methods Implementation ---
+
+// 获取当前登录学生的课表
+std::vector<Course> SystemController::queryMySchedule() {
+    if (!m_currentUser.isValid() || m_currentUser.role != "student") return {};
+    return infra::StudentProxy::findSchedule(*m_db, m_currentUser.id);
+}
+
+// 获取当前登录学生的成绩
+std::vector<infra::GradeDTO> SystemController::queryMyGrades() {
+    if (!m_currentUser.isValid() || m_currentUser.role != "student") return {};
+    return infra::EnrollmentProxy::findGradesByStudent(*m_db, m_currentUser.id);
+}
+
+// 获取某门课程的学生名单 (仅教师/管理员可用)
+std::vector<infra::CourseStudentDTO> SystemController::queryCourseStudentList(std::string courseId) {
+    // 简单权限校验
+    if (!m_currentUser.isValid()) return {};
+    if (m_currentUser.role == "student") return {}; // 学生不可见
+    return infra::CourseProxy::findStudentsByCourse(*m_db, courseId);
+}
+
+// 获取所有课程列表 (公共查询)
+std::vector<std::unique_ptr<Course>> SystemController::queryAllCourses() {
+    return infra::CourseProxy::findAllCourses(*m_db);
+}
+
+// 根据课程ID获取课程对象
+std::unique_ptr<Course> SystemController::findCourseById(std::string courseId) {
+    if (!m_currentUser.isValid()) return nullptr;
+    return infra::CourseProxy::findCourseById(*m_db, courseId);
 }

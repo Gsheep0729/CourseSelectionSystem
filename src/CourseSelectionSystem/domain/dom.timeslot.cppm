@@ -11,6 +11,8 @@
 * Change Log:
 * [v1.0] GY   2026-01-10
 * * 初始版本：实现 Timeslot 类及 overlaps 方法
+* [v5.6] GY   2026-01-19
+* * 规范封装：移除 Getter 方法，实现 transferData 模板
 */
 
 export module domain:timeslot;
@@ -30,9 +32,9 @@ public:
     // 获取格式化的时间字符串
     std::string toString() const;
 
-    // Getters
-    int getWeekday() const { return m_weekday; }
-    int getPeriod() const { return m_period; }
+    // 数据传输器
+    template<typename Func>
+    void transferData(Func&& receiver) const;
 
 private:
     int m_weekday;
@@ -78,4 +80,12 @@ std::string Timeslot::toString() const {
 
     std::string w_str = (m_weekday >= 1 && m_weekday <= 7) ? weeks[m_weekday] : "Unknown";
     return std::format("{} Slot {}", w_str, m_period);
+}
+
+/**
+ * @brief 数据传输器实现
+ */
+template<typename Func>
+void Timeslot::transferData(Func&& receiver) const {
+    receiver(m_weekday, m_period);
 }

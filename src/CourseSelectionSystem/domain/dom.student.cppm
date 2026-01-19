@@ -17,6 +17,9 @@
 * [v2.0] GY   2026-01-10
 * * 增加 hasTimeConflict 方法
 * * 优化 enrollIn/dropCourse 逻辑以配合 Proxy
+* [v5.6] GY   2026-01-19
+* * 规范封装：移除 Getter 方法
+* * 使用 operator== 和冲突检测方法替代外部属性访问
 */
 
 export module domain:student;
@@ -67,7 +70,7 @@ bool Student::isEnrolled(const Course* targetCourse) const {
     if (!targetCourse) return false;
     // 比较指针或ID
     return std::ranges::any_of(m_courses, [targetCourse](Course* c) {
-        return c->getId() == targetCourse->getId();
+        return *c == *targetCourse;
     });
 }
 
@@ -80,7 +83,7 @@ bool Student::hasTimeConflict(const Course* targetCourse) const {
     if (!targetCourse) return false;
 
     for (const auto* enrolledCourse : m_courses) {
-        if (enrolledCourse->getTimeslot().overlaps(targetCourse->getTimeslot())) {
+        if (enrolledCourse->conflictsWith(*targetCourse)) {
             std::print("Conflict detected: {} overlaps with \n", 
                 targetCourse->course_info(), enrolledCourse->course_info());
             return true;
@@ -111,7 +114,7 @@ void Student::dropCourse(Course* c) {
     if (!c) return;
     // 使用 ID 匹配移除，防止指针不同但 ID 相同的情况
     std::erase_if(m_courses, [c](Course* enrolled) {
-        return enrolled->getId() == c->getId();
+        return *enrolled == *c;
     });
 }
 

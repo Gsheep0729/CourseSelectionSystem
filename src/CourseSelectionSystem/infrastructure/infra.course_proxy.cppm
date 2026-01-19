@@ -22,6 +22,8 @@
 * * 新增 updateTeacher 方法，支持更新课程的教师信息
 * [v5.5] GY 2026-01-18
 * * 实现 deleteCourse 方法，增加针对选课记录的关联检查
+* [v5.6] GY   2026-01-19
+* * 规范封装：使用 transferData 替代 Getter 进行持久化操作
 */
 export module infrastructure:course_proxy;
 import domain;
@@ -139,14 +141,19 @@ std::vector<std::unique_ptr<Course>> CourseProxy::findAllCourses(db::DBAdapter& 
     return courses;
 }
 bool CourseProxy::addCourse(db::DBAdapter& db, const Course& course) {
-    const auto& ts = course.getTimeslot();
-    std::string sql = std::format(
-        "INSERT INTO course (id, name, capacity, enrolled, credit, teacher_id, teacher_name, weekday, timeslot) "
-        "VALUES ('{}', '{}', {}, 0, {}, '{}', '{}', {}, {})",
-        course.getId(), course.getName(), course.getCapacity(),
-        course.getCredit(), course.getTeacherId(), course.getTeacherName(), ts.getWeekday(), ts.getPeriod()
-    );
-    return db.execute(sql);
+    bool success = false;
+    course.transferData([&](const auto& id, const auto& name, int cap, int enrolled, double credit, const auto& tid, const auto& tname, const auto& ts) {
+        int weekday, period;
+        ts.transferData([&](int w, int p) { weekday = w; period = p; });
+        
+        std::string sql = std::format(
+            "INSERT INTO course (id, name, capacity, enrolled, credit, teacher_id, teacher_name, weekday, timeslot) "
+            "VALUES ('{}', '{}', {}, 0, {}, '{}', '{}', {}, {})",
+            id, name, cap, credit, tid, tname, weekday, period
+        );
+        success = db.execute(sql);
+    });
+    return success;
 }
 /**
  * @brief 更新课程的教师信息

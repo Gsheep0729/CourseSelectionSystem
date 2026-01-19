@@ -14,8 +14,6 @@ add_subdirectory(../lib_db_core lib_db_core)
 # 1. 定义各层级的模块文件列表 (Code Grouping)
 add_executable(CourseSelectionSystem
     main.cpp
-
-
 )
 
 # 表现层模块 (Presentation Layer)

@@ -17,6 +17,10 @@
 * [v2.0] GY   2026-01-10
 * * 增加字段：credit, teacherId, teacherName, timeslot
 * * 更新构造函数以支持完整信息
+* [v5.6] GY   2026-01-19
+* * 规范封装：移除所有 Getter 方法，实施“告知，而非询问”原则
+* * 实现访问者模式 (transferData) 用于数据持久化
+* * 分离函数声明与实现
 */
 export module domain:course;
 
@@ -42,15 +46,17 @@ public:
     // 移除学生报名信息
     void removeEnrollment(Student* s);
 
-    // Getters
-    std::string getId() const { return m_id; }
-    std::string getName() const { return m_name; }
-    int getCapacity() const { return m_capacity; }
-    double getCredit() const { return m_credit; }
-    std::string getTeacherId() const { return m_teacherId; }
-    std::string getTeacherName() const { return m_teacherName; }
-    const Timeslot& getTimeslot() const { return m_timeslot; }
-    int getEnrolledCount() const { return m_enrolledCount; }
+    // Operator ==
+    bool operator==(const Course& other) const;
+
+    // 数据传输器 (Visitor Pattern): 允许外部以受控方式访问内部状态
+    template<typename Func>
+    void transferData(Func&& receiver) const;
+
+    // 业务逻辑查询方法 (替代 Getter)
+    bool isTaughtBy(std::string_view teacherId) const;
+    
+    bool conflictsWith(const Course& other) const;
 
     // 检查 ID 是否匹配
     bool hasId(std::string_view id) const;
@@ -117,6 +123,35 @@ void Course::removeEnrollment(Student* s) {
     if (m_enrolledCount > 0) m_enrolledCount--;
 }
 
+/**
+ * @brief 重载相等运算符
+ */
+bool Course::operator==(const Course& other) const {
+    return m_id == other.m_id;
+}
+
+/**
+ * @brief 数据传输器实现
+ * 注意：作为模板函数，实现必须位于模块接口文件中
+ */
+template<typename Func>
+void Course::transferData(Func&& receiver) const {
+    receiver(m_id, m_name, m_capacity, m_enrolledCount, m_credit, m_teacherId, m_teacherName, m_timeslot);
+}
+
+/**
+ * @brief 检查是否由指定教师授课
+ */
+bool Course::isTaughtBy(std::string_view teacherId) const {
+    return m_teacherId == teacherId;
+}
+
+/**
+ * @brief 检查是否与另一门课程时间冲突
+ */
+bool Course::conflictsWith(const Course& other) const {
+    return m_timeslot.overlaps(other.m_timeslot);
+}
 
 
 /**

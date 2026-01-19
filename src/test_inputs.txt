@@ -308,7 +308,27 @@ Login successful: Gao Yang (student)
 
 --- 选课 ---
 请输入课程ID：TEST_101
-Enrollment successful! Course Intro_AI now has 1 students.
+Enrollment successful! [Course] TEST_101 - Intro_AI (3.0pts) by 龚伟 | Mon Slot 1 (1/50)
+
+按Enter键继续...
+
+
+
+===============================================
+========== 学生菜单 - 用户名：2024051604085 ==========
+===============================================
+1. 选课 (Enroll in Course)
+2. 退课 (Drop Course)
+3. 查看课表 (View Schedule)
+4. 查看成绩 (View Grades)
+5. 退出登录 (Logout)
+===============================================
+（提示：输入 'exit' 可取消当前操作）
+请选择功能（输入数字1-5）：1
+
+--- 选课 ---
+请输入课程ID：TEST_101
+Error: Already enrolled in [Course] TEST_101 - Intro_AI (3.0pts) by 龚伟 | Mon Slot 1 (1/50)
 
 按Enter键继续...
 
@@ -329,7 +349,7 @@ Enrollment successful! Course Intro_AI now has 1 students.
 --- 选课 ---
 请输入课程ID：TEST_102
 Conflict detected: [Course] TEST_102 - Conflict_Course (2.0pts) by 龚伟 | Mon Slot 1 (0/30) overlaps with
-Error: Time conflict detected for course Conflict_Course
+Error: Time conflict detected for course [Course] TEST_102 - Conflict_Course (2.0pts) by 龚伟 | Mon Slot 1 (0/30)
 
 按Enter键继续...
 
@@ -349,7 +369,7 @@ Error: Time conflict detected for course Conflict_Course
 
 --- 选课 ---
 请输入课程ID：083EB8040A
-Enrollment successful! Course Qt6软件开发 now has 1 students.
+Enrollment successful! [Course] 083EB8040A - Qt6软件开发 (5.0pts) by 龚伟 | Wed Slot 1 (1/120)
 
 按Enter键继续...
 
@@ -368,9 +388,9 @@ Enrollment successful! Course Qt6软件开发 now has 1 students.
 请选择功能（输入数字1-5）：3
 
 --- 我的课表 ---
-课程ID       | 课程名称                  | 授课教师        | 上课时间
-TEST_101     | Intro_AI                  | 龚伟            | Mon Slot 1
-083EB8040A   | Qt6软件开发               | 龚伟            | Wed Slot 1
+--- 课程列表 ---
+[Course] TEST_101 - Intro_AI (3.0pts) by 龚伟 | Mon Slot 1 (1/50)
+[Course] 083EB8040A - Qt6软件开发 (5.0pts) by 龚伟 | Wed Slot 1 (1/120)
 
 按Enter键继续...
 
@@ -422,35 +442,10 @@ Login successful: 龚伟 (teacher)
 
 --- 查看授课名单 ---
 📋 课程列表：
-[083EB8040A] Qt6软件开发
-[083FB20057] 软件工程综合实训2-1（C++方向）
-[TEST_101] Intro_AI
-[TEST_102] Conflict_Course
-
-请输入课程ID：2
-📭 名单为空或课程不存在。
-
-按Enter键继续...
-
-
-
-===============================================
-========== 教师菜单 - 用户名：20131672 ==========
-===============================================
-1. 查看授课名单 (View Teaching Roster)
-2. 录入成绩 (Assign Grade)
-3. 修改成绩 (Modify Grade)
-4. 退出登录 (Logout)
-===============================================
-（提示：输入 'exit' 可取消当前操作）
-请选择功能（输入数字1-4）：1
-
---- 查看授课名单 ---
-📋 课程列表：
-[083EB8040A] Qt6软件开发
-[083FB20057] 软件工程综合实训2-1（C++方向）
-[TEST_101] Intro_AI
-[TEST_102] Conflict_Course
+[Course] 083EB8040A - Qt6软件开发 (5.0pts) by 龚伟 | Wed Slot 1 (1/120)
+[Course] 083FB20057 - 软件工程综合实训2-1（C++方向） (1.0pts) by 龚伟 | Online/No Set Time (0/120)
+[Course] TEST_101 - Intro_AI (3.0pts) by 龚伟 | Mon Slot 1 (1/50)
+[Course] TEST_102 - Conflict_Course (2.0pts) by 龚伟 | Mon Slot 1 (0/30)
 
 请输入课程ID：TEST_101
 序号  | 学号            | 姓名            | 成绩
@@ -495,35 +490,14 @@ Grade updated successfully! Student 2024051604085: Course TEST_101 score = 85
 
 --- 查看授课名单 ---
 📋 课程列表：
-[083EB8040A] Qt6软件开发
-[083FB20057] 软件工程综合实训2-1（C++方向）
-[TEST_101] Intro_AI
-[TEST_102] Conflict_Course
+[Course] 083EB8040A - Qt6软件开发 (5.0pts) by 龚伟 | Wed Slot 1 (1/120)
+[Course] 083FB20057 - 软件工程综合实训2-1（C++方向） (1.0pts) by 龚伟 | Online/No Set Time (0/120)
+[Course] TEST_101 - Intro_AI (3.0pts) by 龚伟 | Mon Slot 1 (1/50)
+[Course] TEST_102 - Conflict_Course (2.0pts) by 龚伟 | Mon Slot 1 (0/30)
 
 请输入课程ID：TEST_101
 序号  | 学号            | 姓名            | 成绩
 1     | 2024051604085   | Gao Yang        | 85
-
-按Enter键继续...
-
-
-
-===============================================
-========== 教师菜单 - 用户名：20131672 ==========
-===============================================
-1. 查看授课名单 (View Teaching Roster)
-2. 录入成绩 (Assign Grade)
-3. 修改成绩 (Modify Grade)
-4. 退出登录 (Logout)
-===============================================
-（提示：输入 'exit' 可取消当前操作）
-请选择功能（输入数字1-4）：2
-
---- 录入成绩 ---
-请输入课程ID：083EB8040A
-请选择学生序号：
-1. Gao Yang (2024051604085)
-请输入序号 (1-1, 输入 'exit' 取消): exit
 
 按Enter键继续...
 
@@ -618,7 +592,7 @@ Intro_AI                  | 3.0    | 85
 
 --- 退课 ---
 请输入课程ID：TEST_101
-Drop successful! Course Intro_AI now has 0 students.
+Drop successful! [Course] TEST_101 - Intro_AI (3.0pts) by 龚伟 | Mon Slot 1 (0/50)
 
 按Enter键继续...
 
@@ -637,8 +611,8 @@ Drop successful! Course Intro_AI now has 0 students.
 请选择功能（输入数字1-5）：3
 
 --- 我的课表 ---
-课程ID       | 课程名称                  | 授课教师        | 上课时间
-083EB8040A   | Qt6软件开发               | 龚伟            | Wed Slot 1
+--- 课程列表 ---
+[Course] 083EB8040A - Qt6软件开发 (5.0pts) by 龚伟 | Wed Slot 1 (1/120)
 
 按Enter键继续...
 
@@ -747,5 +721,4 @@ Login successful: Secretary (secretary)
 free(): double free detected in tcache 2
 qtc.process_stub: Inferior error:  QProcess::Crashed "Process crashed"
 按 <RETURN> 来关闭窗口...
-
 

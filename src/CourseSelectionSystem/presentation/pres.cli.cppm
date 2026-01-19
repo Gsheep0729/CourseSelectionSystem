@@ -36,6 +36,9 @@
 * [v5.5] GY 2026-01-18
 * * 全局集成 'exit' 取消机制，替换旧有的 'q' 指令
 * * 优化教师录入流程：支持按序号选择学生，提升操作效率
+* [v5.6] GY   2026-01-19
+* * 规范封装：更新对重命名后 Controller 方法的调用
+* * 使用“告知，而非询问”原则的方法 (如 isTaughtBy) 替代 Getter
 */
 export module presentation;
 import application;
@@ -248,14 +251,13 @@ void UserInterface::showStudentMenu(std::string_view studentId) {
             case 3: {
                 std::print("\n--- 我的课表 ---\n");
                 if (!m_controller) break;
-                auto schedule = m_controller->getMySchedule();
+                auto schedule = m_controller->queryMySchedule();
                 if (schedule.empty()) {
                     std::print("📭 您当前尚未选修任何课程。\n");
                 } else {
-                    std::print("{:<12} | {:<25} | {:<15} | {:<20}\n", "课程ID", "课程名称", "授课教师", "上课时间");
+                    std::print("--- 课程列表 ---\n");
                     for (const auto& course : schedule) {
-                        std::print("{:<12} | {:<25} | {:<15} | {:<20}\n",
-                                  course.getId(), course.getName(), course.getTeacherName(), course.getTimeslot().toString());
+                        std::print("{}\n", course.course_info());
                     }
                 }
                 break;
@@ -263,7 +265,7 @@ void UserInterface::showStudentMenu(std::string_view studentId) {
             case 4: {
                 std::print("\n--- 我的成绩 ---\n");
                 if (!m_controller) break;
-                auto grades = m_controller->getMyGrades();
+                auto grades = m_controller->queryMyGrades();
                 if (grades.empty()) {
                     std::print("📭 暂无成绩数据。\n");
                 } else {
@@ -312,15 +314,15 @@ void UserInterface::showTeacherMenu(std::string_view teacherId) {
             case 1: {
                 std::print("\n--- 查看授课名单 ---\n");
                 if (!m_controller) break;
-                auto allCourses = m_controller->getAllCourses();
+                auto allCourses = m_controller->queryAllCourses();
                 std::print("📋 课程列表：\n");
                 for (const auto& c : allCourses) {
-                    if (c->getTeacherId() == teacherId)
-                        std::print("[{}] {}\n", c->getId(), c->getName());
+                    if (c->isTaughtBy(teacherId))
+                        std::print("{}\n", c->course_info());
                 }
                 std::string cid = getInputWithPrompt("\n请输入课程ID：");
                 if (cid == "__CANCEL__") break;
-                auto roster = m_controller->getCourseStudentList(cid);
+                auto roster = m_controller->queryCourseStudentList(cid);
                 if (roster.empty()) {
                     std::print("📭 名单为空或课程不存在。\n");
                 } else {
@@ -338,7 +340,7 @@ void UserInterface::showTeacherMenu(std::string_view teacherId) {
                 if (!m_controller) break;
                 std::string cid = getInputWithPrompt("请输入课程ID：");
                 if (cid == "__CANCEL__") break;
-                auto roster = m_controller->getCourseStudentList(cid);
+                auto roster = m_controller->queryCourseStudentList(cid);
                 if (roster.empty()) {
                     std::print("❌ 该课程无学生或不存在。\n");
                     break;
@@ -494,14 +496,14 @@ void UserInterface::showSecretaryMenu(std::string_view secretaryId) {
             case 2: {
                 std::print("\n--- 分配教师 ---\n");
                 if (!m_controller) break;
-                auto allCourses = m_controller->getAllCourses();
+                auto allCourses = m_controller->queryAllCourses();
                 if (allCourses.empty()) {
                     std::print("暂无课程数据。\n");
                     break;
                 }
-                std::print("{:<12} | {:<25} | {:<15}\n", "课程ID", "课程名称", "当前教师");
+                std::print("--- 课程列表 ---\n");
                 for (const auto& course : allCourses) {
-                    std::print("{:<12} | {:<25} | {:<15}\n", course->getId(), course->getName(), course->getTeacherName());
+                    std::print("{}\n", course->course_info());
                 }
                 std::string cid = getInputWithPrompt("\n请输入课程ID: ");
                 if (cid == "__CANCEL__") break;
