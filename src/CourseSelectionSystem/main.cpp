@@ -38,9 +38,13 @@ int main() {
             }
         }
 
+        // 4. 程序结束清理
+        app.cleanup();
+
     } catch (const std::exception& e) {
         std::print("Fatal Error: {}\n", e.what());
         return 1;
     }
     return 0;
+
 }

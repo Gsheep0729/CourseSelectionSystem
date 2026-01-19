@@ -75,6 +75,7 @@ public:
 
     SystemController(); // 构造函数：初始化数据库适配器
     void initialize(); // 系统初始化：建立连接、创建表结构
+    void cleanup(); // 系统清理：删除表结构 (用于测试)
     void run(); // 启动系统运行逻辑
 
     // 用户认证
@@ -311,6 +312,21 @@ void SystemController::initialize() {
     }
 
     std::print("Initial data loaded.\n");
+}
+
+/**
+ * @brief 系统清理
+ * 删除所有表结构，用于测试环境复位。
+ */
+void SystemController::cleanup() {
+    if (!m_db->is_connected()) return;
+
+    m_db->execute("DROP TABLE IF EXISTS enrollment CASCADE");
+    m_db->execute("DROP TABLE IF EXISTS course CASCADE");
+    m_db->execute("DROP TABLE IF EXISTS student CASCADE");
+    m_db->execute("DROP TABLE IF EXISTS users CASCADE");
+
+    std::print("System cleanup: Tables dropped.\n");
 }
 
 /**
