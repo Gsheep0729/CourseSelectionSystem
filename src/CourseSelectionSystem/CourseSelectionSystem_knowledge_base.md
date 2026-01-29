@@ -230,7 +230,7 @@ export import presentation;
 /**
 * @file    src/CourseSelectionSystem/main.cpp
 * @date    2026-01-07
-* @author  Integrated
+* @author  GY
 * @brief   选课系统主程序入口
 *
 * Change Log:
@@ -242,15 +242,52 @@ export import presentation;
 * * 修正交互死循环，通过判断 showLoginMenu 返回值实现优雅退出
 * [v6.0] GY   2026-01-19
 * * 经终期检查：系统入口逻辑健壮，代码实现严格遵循 C++23 规范
+* [v6.1] GY   2026-01-29
+* * 新增：在程序启动时提供交互式数据库初始化配置选择（默认配置 vs 自定义配置）
 */
 import std;
 import course_system;
 
 int main() {
     try {
+
+        // -----------新增数据库初始化从这里|=>--------------
+        std::string conn_str = "";
+
+        std::print("Course Selection System Initialization\n");
+        std::print("--------------------------------------\n");
+        std::print("1. Use Default Database Configuration\n");
+        std::print("   (dbname=CourseSelectionSystem user=postgres password=123 host=127.0.0.1 port=5432)\n");
+        std::print("2. Custom Database Configuration\n");
+        std::print("Please enter your choice (1 or 2): ");
+
+        std::string choice;
+        std::getline(std::cin, choice);
+
+        if (choice == "2") {
+            std::string dbname, user, password, host, port;
+            std::print("Enter database name: ");
+            std::getline(std::cin, dbname);
+            std::print("Enter user: ");
+            std::getline(std::cin, user);
+            std::print("Enter password: ");
+            std::getline(std::cin, password);
+            std::print("Enter host IP (e.g., 127.0.0.1): ");
+            std::getline(std::cin, host);
+            std::print("Enter port (e.g., 5432): ");
+            std::getline(std::cin, port);
+
+            conn_str = std::format("dbname={} user={} password={} hostaddr={} port={}", 
+                                   dbname, user, password, host, port);
+        } else {
+             std::print("Using default configuration...\n");
+        }
+
+        // // -------------<=|--------------
+
         // 1. 初始化系统控制器 (连接数据库, 建表, 初始化数据)
         SystemController app;
-        app.initialize();
+        app.initialize(conn_str);
 
         // 2. 初始化用户界面并注入控制器
         UserInterface cli;
@@ -267,12 +304,20 @@ int main() {
             }
         }
 
+        // 4. 程序结束清理
+        app.cleanup();
+
     } catch (const std::exception& e) {
         std::print("Fatal Error: {}\n", e.what());
         return 1;
     }
     return 0;
+<<<<<<< HEAD
+
 }
+=======
+} 
+>>>>>>> dev
 
 ```
 
@@ -340,6 +385,8 @@ int main() {
 * * 测试数据升级：导入真实的学生名单 (178名学生)
 * [v6.0] GY   2026-01-19
 * * 经终期检查：全业务流程通过大规模真实数据验证，代码标准、逻辑完备
+* [v6.1] GY   2026-01-29
+* * 新增：支持自定义数据库连接配置，优化 initialize 接口以接受外部连接字符串
 */
 export module application;
 import domain;
@@ -356,7 +403,12 @@ public:
     };
 
     SystemController(); // 构造函数：初始化数据库适配器
+<<<<<<< HEAD
     void initialize(); // 系统初始化：建立连接、创建表结构
+=======
+    void initialize(const std::string& conn_str = ""); // 系统初始化：建立连接、创建表结构
+>>>>>>> dev
+    void cleanup(); // 系统清理：删除表结构 (用于测试)
     void run(); // 启动系统运行逻辑
 
     // 用户认证
@@ -407,9 +459,14 @@ SystemController::SystemController() : m_db(std::make_unique<db::DBAdapter>()) {
  * @brief 系统环境初始化
  * 建立数据库连接，执行 DDL 语句重置表结构，并导入初始的用户及课程数据。
  */
-void SystemController::initialize() {
+void SystemController::initialize(const std::string& custom_conn_str) {
     // 使用 PostgreSQL的 CourseSelectionSystem数据库，登录管理员账号为postgres，密码为123，ip地址为127.0.0.1，端口号为5432
     std::string conn_str = "dbname=CourseSelectionSystem user=postgres password=123 hostaddr=127.0.0.1 port=5432";
+
+    if (!custom_conn_str.empty()) {
+        conn_str = custom_conn_str;
+    }
+
     if (!m_db->connect(conn_str)) {
         std::print("Error: Failed to connect to database.\n");
         return;
@@ -593,6 +650,21 @@ void SystemController::initialize() {
     }
 
     std::print("Initial data loaded.\n");
+}
+
+/**
+ * @brief 系统清理
+ * 删除所有表结构，用于测试环境复位。
+ */
+void SystemController::cleanup() {
+    if (!m_db->is_connected()) return;
+
+    m_db->execute("DROP TABLE IF EXISTS enrollment CASCADE");
+    m_db->execute("DROP TABLE IF EXISTS course CASCADE");
+    m_db->execute("DROP TABLE IF EXISTS student CASCADE");
+    m_db->execute("DROP TABLE IF EXISTS users CASCADE");
+
+    std::print("System cleanup: Tables dropped.\n");
 }
 
 /**
@@ -2706,16 +2778,21 @@ bool StudentProxy::isEnrolled(db::DBAdapter& db, std::string_view studentId, std
 * [v6.0] GY   2026-01-19
 * * 经终期检查：数据持久化逻辑严密，通过真实数据验证，代码实现与领域层完全解耦
 */
+
 export module infrastructure:course_proxy;
+
 import domain;
-import :db_adapter; // 导入同属于 infrastructure 模块的 db_adapter 分区 (假设 db_adapter 也是 infrastructure 的一部分)
+import :db_adapter;
 import std;
+
 export namespace infra { // 使用 namespace 区分
+
 struct CourseStudentDTO {
     std::string id;
     std::string name;
     int score; // -1 表示未录入
 };
+
 class CourseProxy {
 public:
     static std::unique_ptr<Course> findCourseById(db::DBAdapter& db, std::string_view id); // 根据 ID 查找课程
@@ -2726,12 +2803,16 @@ public:
     static bool deleteCourse(db::DBAdapter& db, std::string_view courseId); // 删除课程
     static bool hasTeacherTimeConflict(db::DBAdapter& db, std::string_view teacherId, int weekday, int timeslot); // 检查教师时间冲突
 };
+
 } // namespace infra
+
 // --- Implementation ---
+
 namespace infra {
+
 /**
  * @brief 检查教师是否存在时间冲突
- * @param db 数据库适配器
+ * @param db 数据库适配器引用
  * @param teacherId 教师ID
  * @param weekday 星期
  * @param timeslot 节次
@@ -2752,8 +2833,12 @@ bool CourseProxy::hasTeacherTimeConflict(db::DBAdapter& db, std::string_view tea
     }
     return false;
 }
+
 /**
  * @brief 删除课程（包含前置检查）
+ * @param db 数据库适配器引用
+ * @param courseId 待删除的课程ID
+ * @return 操作成功返回 true，若课程有选课记录无法删除则返回 false
  */
 bool CourseProxy::deleteCourse(db::DBAdapter& db, std::string_view courseId) {
     // 1. 检查是否有选课记录（防止级联删除导致数据丢失）
@@ -2769,6 +2854,13 @@ bool CourseProxy::deleteCourse(db::DBAdapter& db, std::string_view courseId) {
     std::string sql = std::format("DELETE FROM course WHERE id = '{}'", courseId);
     return db.execute(sql);
 }
+
+/**
+ * @brief 查询某课程的选课学生名单
+ * @param db 数据库适配器引用
+ * @param courseId 课程ID
+ * @return 包含学生ID、姓名和成绩的DTO列表
+ */
 std::vector<CourseStudentDTO> CourseProxy::findStudentsByCourse(db::DBAdapter& db, std::string_view courseId) {
     std::vector<CourseStudentDTO> students;
     // 关联查询 enrollment 和 student 表
@@ -2800,6 +2892,13 @@ std::vector<CourseStudentDTO> CourseProxy::findStudentsByCourse(db::DBAdapter& d
     }
     return students;
 }
+
+/**
+ * @brief 根据ID查找课程对象
+ * @param db 数据库适配器引用
+ * @param id 课程ID
+ * @return 指向Course对象的unique_ptr，若未找到则返回nullptr
+ */
 std::unique_ptr<Course> CourseProxy::findCourseById(db::DBAdapter& db, std::string_view id) {
     std::string sql = std::format(
         "SELECT name, capacity, enrolled, credit, teacher_id, teacher_name, weekday, timeslot "
@@ -2823,6 +2922,12 @@ std::unique_ptr<Course> CourseProxy::findCourseById(db::DBAdapter& db, std::stri
         std::string(id), name, cap, enrolled, credit, tid, tname, Timeslot(w, t)
     );
 }
+
+/**
+ * @brief 获取系统中所有课程的列表
+ * @param db 数据库适配器引用
+ * @return 包含所有课程对象的vector
+ */
 std::vector<std::unique_ptr<Course>> CourseProxy::findAllCourses(db::DBAdapter& db) {
     std::string sql = "SELECT id, name, capacity, enrolled, credit, teacher_id, teacher_name, weekday, timeslot FROM course ORDER BY id";
     auto res = db.query(sql);
@@ -2845,6 +2950,13 @@ std::vector<std::unique_ptr<Course>> CourseProxy::findAllCourses(db::DBAdapter& 
     }
     return courses;
 }
+
+/**
+ * @brief 将新课程信息持久化到数据库
+ * @param db 数据库适配器引用
+ * @param course 待添加的课程对象
+ * @return 操作成功返回 true，失败返回 false
+ */
 bool CourseProxy::addCourse(db::DBAdapter& db, const Course& course) {
     bool success = false;
     course.transferData([&](const auto& id, const auto& name, int cap, int enrolled, double credit, const auto& tid, const auto& tname, const auto& ts) {
@@ -2860,6 +2972,7 @@ bool CourseProxy::addCourse(db::DBAdapter& db, const Course& course) {
     });
     return success;
 }
+
 /**
  * @brief 更新课程的教师信息
  * @param db 数据库适配器引用
@@ -2875,8 +2988,8 @@ bool CourseProxy::updateTeacher(db::DBAdapter& db, const std::string& courseId, 
     );
     return db.execute(sql);
 }
-} // namespace infra
 
+} // namespace infra
 ```
 
 ---

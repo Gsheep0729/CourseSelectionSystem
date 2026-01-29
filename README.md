@@ -122,8 +122,13 @@ graph TD
 ```bash
 # 前提
 项目默认数据库配置：
+<<<<<<< HEAD
 使用 PostgreSQL的 CourseSelectionSystem数据库，登录管理员账号为postgres，密码为123，ip地址为127.0.0.1，端口号为5432
 按需修改src/CourseSelectionSystem/application/app.controller.cppm文件里的130行——SystemController::initialize()初始化函数
+=======
+使用 PostgreSQL的 CourseSelectionSystem数据库，登录管理员账号为"postgres"，密码为"123"，ip地址为"127.0.0.1"，端口号为"5432"
+按需修改src/CourseSelectionSystem/application/app.controller.cppm文件里的133行——SystemController::initialize()初始化函数中的默认数据库初始化连接
+>>>>>>> dev
 #  构建步骤
 # 1. 克隆仓库
 git clone https://github.com/Gsheep0729/CourseSelectionSystem.git
@@ -159,6 +164,13 @@ cmake --build .
     python for_md.py
     # 根据提示输入目标目录路径，即可生成 _knowledge_base.md
     ```
+---
+
+## 作者与贡献
+
+Lead Developer: GY (架构设计, 核心模块, C++ Modules 迁移)
+Developer: Zhang Tao (表现层, 基础设施层实现)
 
 ---
+
 Copyright © 2026 Gao Yang& Zhang Tao. All Rights Reserved.
