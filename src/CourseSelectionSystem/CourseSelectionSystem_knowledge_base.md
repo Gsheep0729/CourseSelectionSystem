@@ -230,7 +230,7 @@ export import presentation;
 /**
 * @file    src/CourseSelectionSystem/main.cpp
 * @date    2026-01-07
-* @author  Integrated
+* @author  GY
 * @brief   选课系统主程序入口
 *
 * Change Log:
@@ -242,15 +242,52 @@ export import presentation;
 * * 修正交互死循环，通过判断 showLoginMenu 返回值实现优雅退出
 * [v6.0] GY   2026-01-19
 * * 经终期检查：系统入口逻辑健壮，代码实现严格遵循 C++23 规范
+* [v6.1] GY   2026-01-29
+* * 新增：在程序启动时提供交互式数据库初始化配置选择（默认配置 vs 自定义配置）
 */
 import std;
 import course_system;
 
 int main() {
     try {
+
+        // -----------新增数据库初始化从这里|=>--------------
+        std::string conn_str = "";
+
+        std::print("Course Selection System Initialization\n");
+        std::print("--------------------------------------\n");
+        std::print("1. Use Default Database Configuration\n");
+        std::print("   (dbname=CourseSelectionSystem user=postgres password=123 host=127.0.0.1 port=5432)\n");
+        std::print("2. Custom Database Configuration\n");
+        std::print("Please enter your choice (1 or 2): ");
+
+        std::string choice;
+        std::getline(std::cin, choice);
+
+        if (choice == "2") {
+            std::string dbname, user, password, host, port;
+            std::print("Enter database name: ");
+            std::getline(std::cin, dbname);
+            std::print("Enter user: ");
+            std::getline(std::cin, user);
+            std::print("Enter password: ");
+            std::getline(std::cin, password);
+            std::print("Enter host IP (e.g., 127.0.0.1): ");
+            std::getline(std::cin, host);
+            std::print("Enter port (e.g., 5432): ");
+            std::getline(std::cin, port);
+
+            conn_str = std::format("dbname={} user={} password={} hostaddr={} port={}", 
+                                   dbname, user, password, host, port);
+        } else {
+             std::print("Using default configuration...\n");
+        }
+
+        // // -------------<=|--------------
+
         // 1. 初始化系统控制器 (连接数据库, 建表, 初始化数据)
         SystemController app;
-        app.initialize();
+        app.initialize(conn_str);
 
         // 2. 初始化用户界面并注入控制器
         UserInterface cli;
@@ -267,12 +304,15 @@ int main() {
             }
         }
 
+        // 4. 程序结束清理
+        app.cleanup();
+
     } catch (const std::exception& e) {
         std::print("Fatal Error: {}\n", e.what());
         return 1;
     }
     return 0;
-}
+} 
 
 ```
 
@@ -340,6 +380,8 @@ int main() {
 * * 测试数据升级：导入真实的学生名单 (178名学生)
 * [v6.0] GY   2026-01-19
 * * 经终期检查：全业务流程通过大规模真实数据验证，代码标准、逻辑完备
+* [v6.1] GY   2026-01-29
+* * 新增：支持自定义数据库连接配置，优化 initialize 接口以接受外部连接字符串
 */
 export module application;
 import domain;
@@ -356,7 +398,8 @@ public:
     };
 
     SystemController(); // 构造函数：初始化数据库适配器
-    void initialize(); // 系统初始化：建立连接、创建表结构
+    void initialize(const std::string& conn_str = ""); // 系统初始化：建立连接、创建表结构
+    void cleanup(); // 系统清理：删除表结构 (用于测试)
     void run(); // 启动系统运行逻辑
 
     // 用户认证
@@ -407,9 +450,14 @@ SystemController::SystemController() : m_db(std::make_unique<db::DBAdapter>()) {
  * @brief 系统环境初始化
  * 建立数据库连接，执行 DDL 语句重置表结构，并导入初始的用户及课程数据。
  */
-void SystemController::initialize() {
+void SystemController::initialize(const std::string& custom_conn_str) {
     // 使用 PostgreSQL的 CourseSelectionSystem数据库，登录管理员账号为postgres，密码为123，ip地址为127.0.0.1，端口号为5432
     std::string conn_str = "dbname=CourseSelectionSystem user=postgres password=123 hostaddr=127.0.0.1 port=5432";
+
+    if (!custom_conn_str.empty()) {
+        conn_str = custom_conn_str;
+    }
+
     if (!m_db->connect(conn_str)) {
         std::print("Error: Failed to connect to database.\n");
         return;
@@ -593,6 +641,21 @@ void SystemController::initialize() {
     }
 
     std::print("Initial data loaded.\n");
+}
+
+/**
+ * @brief 系统清理
+ * 删除所有表结构，用于测试环境复位。
+ */
+void SystemController::cleanup() {
+    if (!m_db->is_connected()) return;
+
+    m_db->execute("DROP TABLE IF EXISTS enrollment CASCADE");
+    m_db->execute("DROP TABLE IF EXISTS course CASCADE");
+    m_db->execute("DROP TABLE IF EXISTS student CASCADE");
+    m_db->execute("DROP TABLE IF EXISTS users CASCADE");
+
+    std::print("System cleanup: Tables dropped.\n");
 }
 
 /**

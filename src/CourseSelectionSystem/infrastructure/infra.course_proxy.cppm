@@ -29,16 +29,21 @@
 * [v6.0] GY   2026-01-19
 * * 经终期检查：数据持久化逻辑严密，通过真实数据验证，代码实现与领域层完全解耦
 */
+
 export module infrastructure:course_proxy;
+
 import domain;
-import :db_adapter; // 导入同属于 infrastructure 模块的 db_adapter 分区 (假设 db_adapter 也是 infrastructure 的一部分)
+import :db_adapter;
 import std;
+
 export namespace infra { // 使用 namespace 区分
+
 struct CourseStudentDTO {
     std::string id;
     std::string name;
     int score; // -1 表示未录入
 };
+
 class CourseProxy {
 public:
     static std::unique_ptr<Course> findCourseById(db::DBAdapter& db, std::string_view id); // 根据 ID 查找课程
@@ -49,12 +54,16 @@ public:
     static bool deleteCourse(db::DBAdapter& db, std::string_view courseId); // 删除课程
     static bool hasTeacherTimeConflict(db::DBAdapter& db, std::string_view teacherId, int weekday, int timeslot); // 检查教师时间冲突
 };
+
 } // namespace infra
+
 // --- Implementation ---
+
 namespace infra {
+
 /**
  * @brief 检查教师是否存在时间冲突
- * @param db 数据库适配器
+ * @param db 数据库适配器引用
  * @param teacherId 教师ID
  * @param weekday 星期
  * @param timeslot 节次
@@ -75,8 +84,12 @@ bool CourseProxy::hasTeacherTimeConflict(db::DBAdapter& db, std::string_view tea
     }
     return false;
 }
+
 /**
  * @brief 删除课程（包含前置检查）
+ * @param db 数据库适配器引用
+ * @param courseId 待删除的课程ID
+ * @return 操作成功返回 true，若课程有选课记录无法删除则返回 false
  */
 bool CourseProxy::deleteCourse(db::DBAdapter& db, std::string_view courseId) {
     // 1. 检查是否有选课记录（防止级联删除导致数据丢失）
@@ -92,6 +105,13 @@ bool CourseProxy::deleteCourse(db::DBAdapter& db, std::string_view courseId) {
     std::string sql = std::format("DELETE FROM course WHERE id = '{}'", courseId);
     return db.execute(sql);
 }
+
+/**
+ * @brief 查询某课程的选课学生名单
+ * @param db 数据库适配器引用
+ * @param courseId 课程ID
+ * @return 包含学生ID、姓名和成绩的DTO列表
+ */
 std::vector<CourseStudentDTO> CourseProxy::findStudentsByCourse(db::DBAdapter& db, std::string_view courseId) {
     std::vector<CourseStudentDTO> students;
     // 关联查询 enrollment 和 student 表
@@ -123,6 +143,13 @@ std::vector<CourseStudentDTO> CourseProxy::findStudentsByCourse(db::DBAdapter& d
     }
     return students;
 }
+
+/**
+ * @brief 根据ID查找课程对象
+ * @param db 数据库适配器引用
+ * @param id 课程ID
+ * @return 指向Course对象的unique_ptr，若未找到则返回nullptr
+ */
 std::unique_ptr<Course> CourseProxy::findCourseById(db::DBAdapter& db, std::string_view id) {
     std::string sql = std::format(
         "SELECT name, capacity, enrolled, credit, teacher_id, teacher_name, weekday, timeslot "
@@ -146,6 +173,12 @@ std::unique_ptr<Course> CourseProxy::findCourseById(db::DBAdapter& db, std::stri
         std::string(id), name, cap, enrolled, credit, tid, tname, Timeslot(w, t)
     );
 }
+
+/**
+ * @brief 获取系统中所有课程的列表
+ * @param db 数据库适配器引用
+ * @return 包含所有课程对象的vector
+ */
 std::vector<std::unique_ptr<Course>> CourseProxy::findAllCourses(db::DBAdapter& db) {
     std::string sql = "SELECT id, name, capacity, enrolled, credit, teacher_id, teacher_name, weekday, timeslot FROM course ORDER BY id";
     auto res = db.query(sql);
@@ -168,6 +201,13 @@ std::vector<std::unique_ptr<Course>> CourseProxy::findAllCourses(db::DBAdapter& 
     }
     return courses;
 }
+
+/**
+ * @brief 将新课程信息持久化到数据库
+ * @param db 数据库适配器引用
+ * @param course 待添加的课程对象
+ * @return 操作成功返回 true，失败返回 false
+ */
 bool CourseProxy::addCourse(db::DBAdapter& db, const Course& course) {
     bool success = false;
     course.transferData([&](const auto& id, const auto& name, int cap, int enrolled, double credit, const auto& tid, const auto& tname, const auto& ts) {
@@ -183,6 +223,7 @@ bool CourseProxy::addCourse(db::DBAdapter& db, const Course& course) {
     });
     return success;
 }
+
 /**
  * @brief 更新课程的教师信息
  * @param db 数据库适配器引用
@@ -198,4 +239,5 @@ bool CourseProxy::updateTeacher(db::DBAdapter& db, const std::string& courseId, 
     );
     return db.execute(sql);
 }
+
 } // namespace infra
