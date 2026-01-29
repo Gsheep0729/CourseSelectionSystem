@@ -58,6 +58,8 @@
 * * 测试数据升级：导入真实的学生名单 (178名学生)
 * [v6.0] GY   2026-01-19
 * * 经终期检查：全业务流程通过大规模真实数据验证，代码标准、逻辑完备
+* [v6.1] GY   2026-01-29
+* * 新增：支持自定义数据库连接配置，优化 initialize 接口以接受外部连接字符串
 */
 export module application;
 import domain;
@@ -74,7 +76,7 @@ public:
     };
 
     SystemController(); // 构造函数：初始化数据库适配器
-    void initialize(); // 系统初始化：建立连接、创建表结构
+    void initialize(const std::string& conn_str = ""); // 系统初始化：建立连接、创建表结构
     void cleanup(); // 系统清理：删除表结构 (用于测试)
     void run(); // 启动系统运行逻辑
 
@@ -126,9 +128,14 @@ SystemController::SystemController() : m_db(std::make_unique<db::DBAdapter>()) {
  * @brief 系统环境初始化
  * 建立数据库连接，执行 DDL 语句重置表结构，并导入初始的用户及课程数据。
  */
-void SystemController::initialize() {
+void SystemController::initialize(const std::string& custom_conn_str) {
     // 使用 PostgreSQL的 CourseSelectionSystem数据库，登录管理员账号为postgres，密码为123，ip地址为127.0.0.1，端口号为5432
     std::string conn_str = "dbname=CourseSelectionSystem user=postgres password=123 hostaddr=127.0.0.1 port=5432";
+
+    if (!custom_conn_str.empty()) {
+        conn_str = custom_conn_str;
+    }
+
     if (!m_db->connect(conn_str)) {
         std::print("Error: Failed to connect to database.\n");
         return;
